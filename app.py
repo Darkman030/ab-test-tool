@@ -1,13 +1,12 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import beta, chi2_contingency, ttest_ind_from_stats
-from statsmodels.stats.proportion import proportions_ztest, proportion_effectsize
-from statsmodels.stats.power import NormalIndPower
+from scipy.stats import beta, chi2_contingency
+from statsmodels.stats.proportion import proportions_ztest
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer (Smart Logic Edition)")
+st.title("A/B Test Analyzer v0.6")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -52,12 +51,11 @@ def generate_smart_analysis(hypothesis, metrics):
     # 1. Executive Summary
     report.append("### 📄 Executive Summary")
     
-    # SRM Check (The most critical failure)
+    # SRM Check
     if metrics['p_srm'] < 0.01:
         report.append(f"❌ **CRITICAL FAILURE:** Sample Ratio Mismatch (SRM) detected (p={metrics['p_srm']:.4f}).")
-        report.append("The traffic was not split evenly between Control and Variation. This usually indicates a bug in the redirect or tracking code.")
-        report.append("**VERDICT:** Do not analyze these results. They are statistically invalid.")
-        return "\n\n".join(report) # Stop generation here
+        report.append("The traffic was not split evenly. **The results are likely invalid.**")
+        return "\n\n".join(report) 
 
     # Primary Result Logic
     if metrics['p_cr'] <= 0.05:
@@ -69,30 +67,23 @@ def generate_smart_analysis(hypothesis, metrics):
             report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT LOSER**.")
     else:
         status = "INCONCLUSIVE"
-        report.append(f"The test is **INCONCLUSIVE**. We did not find a statistically significant difference in Conversion Rate (p={metrics['p_cr']:.4f}).")
+        report.append(f"The test is **INCONCLUSIVE** (p={metrics['p_cr']:.4f}).")
 
-    # 2. Data Health & Validity (RESTORED!)
+    # 2. Data Health & Validity
     report.append("### 🛡️ Data Health & Validity")
     
-    # Duration Check
     if metrics['days'] < 7:
         report.append(f"⚠️ **Duration Warning:** The test ran for only {metrics['days']} days (less than a week).")
-        report.append("   - Risk: Results may be skewed by daily traffic cycles (e.g., weekends vs weekdays).")
-        report.append("   - Advice: Run for at least 1 full week.")
     elif metrics['days'] < 14:
         report.append(f"⚠️ **Duration Caution:** The test ran for {metrics['days']} days (less than 2 weeks).")
-        report.append("   - Risk: Be careful of 'Novelty Effects' where users click just because it's new.")
-        report.append("   - Advice: Ideally run for 14 days to capture two full business cycles.")
     else:
-        report.append(f"✅ **Duration:** Healthy. The test ran for {metrics['days']} days, capturing sufficient weekly cycles.")
+        report.append(f"✅ **Duration:** Healthy ({metrics['days']} days).")
 
-    # SRM Confirmation
-    report.append(f"✅ **SRM Check:** Passed (p={metrics['p_srm']:.4f}). Traffic split is balanced.")
+    report.append(f"✅ **SRM Check:** Passed (p={metrics['p_srm']:.4f}).")
 
     # 3. Performance Breakdown
     report.append("### 🔍 Performance Breakdown")
-    report.append(f"Over the course of the test, we tracked **{metrics['users_c'] + metrics['users_v']:,} users**.")
-    report.append(f"- **Conversion Rate:** The Variation {'improved' if metrics['uplift_cr'] > 0 else 'decreased'} conversion rate by **{metrics['uplift_cr']:.2f}%**.")
+    report.append(f"- **Conversion Rate:** The Variation {'improved' if metrics['uplift_cr'] > 0 else 'decreased'} CR by **{metrics['uplift_cr']:.2f}%**.")
     
     if abs(metrics['uplift_aov']) < 1.0:
         aov_text = "remained stable"
@@ -100,46 +91,48 @@ def generate_smart_analysis(hypothesis, metrics):
         aov_text = f"{'increased' if metrics['uplift_aov'] > 0 else 'decreased'} by {metrics['uplift_aov']:.2f}%"
     report.append(f"- **Average Order Value:** AOV {aov_text} (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
 
-    # 4. Strategic Trade-off Analysis
-    report.append("### ⚖️ Strategic Trade-off Analysis")
-    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
-        report.append("⚠️ **Pattern Detected: The 'Discount Effect'.**")
-        report.append("You are driving more volume (Orders up), but value per order is down. This often happens with price cuts or easier checkout flows.")
-    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
-        report.append("⚠️ **Pattern Detected: The 'Luxury Effect'.**")
-        report.append("You are driving fewer orders, but each order is worth more. This happens when prices are raised or low-quality traffic is filtered out.")
-    else:
-        report.append("✅ **Consistent Trends.** Both Conversion Rate and AOV are moving in the same direction (or staying flat).")
-
-    # 5. Final Recommendation
+    # 4. Final Recommendation
     report.append("### 🚀 Recommendation")
     if metrics['uplift_rpv'] > 0:
         financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
         report.append(f"**Financial Outlook: POSITIVE.**")
         report.append(f"The Variation generates **${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor**.")
         report.append(f"If rolled out to 100,000 users, this would generate an extra **${financial_impact:,.0f}**.")
-        
-        if status == "WINNING" and metrics['days'] >= 14:
-            report.append(f"**Action:** ✅ **ROLL OUT.** The test is statistically significant, financially positive, and ran for a sufficient duration.")
-        elif status == "WINNING" and metrics['days'] < 14:
-            report.append(f"**Action:** ⏳ **WAIT.** The result is positive, but the test duration is short. Run for {14 - metrics['days']} more days to confirm.")
-        elif status == "INCONCLUSIVE":
-            report.append(f"**Action:** ⏳ **CONTINUE TESTING.** The financial trend is positive, but we lack statistical confidence.")
     else:
         report.append(f"**Financial Outlook: NEGATIVE.**")
         report.append(f"The Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
-        report.append(f"**Action:** 🛑 **DO NOT ROLL OUT.** The variation is hurting overall revenue efficiency.")
 
-    # 6. Context from Hypothesis
+    # 5. Hypothesis Context
     if hypothesis:
         report.append("### 🧠 Hypothesis Review")
-        report.append(f"**Your Goal:** *{hypothesis}*")
+        report.append(f"**Goal:** *{hypothesis}*")
         if (status == "WINNING" and metrics['uplift_rpv'] > 0):
             report.append("The data **SUPPORTS** your hypothesis.")
         else:
             report.append("The data **DOES NOT SUPPORT** your hypothesis at this time.")
 
     return "\n\n".join(report)
+
+def calculate_bayesian_risk(alpha_c, beta_c, alpha_v, beta_v, num_samples=50000):
+    """
+    Calculates Probability to Be Best (PBB) and Expected Loss using Monte Carlo.
+    """
+    # Draw random samples from the Beta distributions
+    samples_c = np.random.beta(alpha_c, beta_c, num_samples)
+    samples_v = np.random.beta(alpha_v, beta_v, num_samples)
+    
+    # 1. Probability to be Best
+    prob_v_wins = np.mean(samples_v > samples_c)
+    
+    # 2. Expected Loss (Risk)
+    # If we choose Variation, but Control was actually better, how much do we lose?
+    # loss_v = mean(max(Control - Variation, 0))
+    loss_v = np.mean(np.maximum(samples_c - samples_v, 0))
+    
+    # If we choose Control, but Variation was actually better, how much do we lose?
+    loss_c = np.mean(np.maximum(samples_v - samples_c, 0))
+    
+    return prob_v_wins, loss_v, loss_c
 
 # --- PLOTTING FUNCTIONS ---
 
@@ -274,7 +267,7 @@ if uplift_rpv > 0:
 else:
     st.write(f"**Financial Impact:** The Variation generates **${rpv_c - rpv_v:.2f} less per visitor**.")
 
-# 4. HEALTH CHECKS (Visual Badge Section)
+# 4. HEALTH CHECKS
 st.subheader("4. Health Checks")
 col1, col2 = st.columns(2)
 with col1:
@@ -295,7 +288,8 @@ st.markdown("---")
 
 # --- TABS ---
 st.header("Deep Dive Analysis")
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+    "🛑 Stopping & Risk", # New Tab
     "🧠 Smart Analysis", 
     "Strategic Matrix", 
     "Product Metrics", 
@@ -306,46 +300,89 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Box Plot"
 ])
 
-# --- TAB 1: SMART ANALYSIS (Logic Powered) ---
+# --- TAB 1: STOPPING & RISK ---
 with tab1:
-    st.markdown("### 🧠 Smart Executive Summary")
-    st.info("This report is generated automatically based on statistical rules (No API Key required).")
+    st.markdown("### 🛑 Stopping Rules & Sequential Testing")
     
-    user_hypothesis = st.text_area("What was your Hypothesis?", 
-                                 placeholder="e.g., We believed that moving the CTA above the fold would increase conversion rate...",
-                                 height=70)
+    # 1. Bayesian Risk Analysis
+    st.markdown("#### 1. Bayesian Expected Loss (Risk Analysis)")
+    st.write("Does the Variation have enough probability of winning to stop now?")
     
-    if st.button("Generate Analysis Report"):
-        metrics_payload = {
-            "days": days_run,
-            "users_c": users_control, "users_v": users_variation,
-            "p_srm": p_value_srm,
-            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov,
-            "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
-        }
+    # Run Monte Carlo
+    prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
+        conv_control+1, users_control-conv_control+1, 
+        conv_variation+1, users_variation-conv_variation+1
+    )
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Probability Best", f"{prob_v_wins*100:.1f}%")
+    c2.metric("Risk (If you Switch)", f"{loss_v*100:.5f}%")
+    c3.metric("Risk (If you Stay)", f"{loss_c*100:.5f}%")
+    
+    st.caption("**What this means:** 'Risk' is the conversion rate you might lose if the 'Winner' turns out to be wrong.")
+    
+    # VWO / Optimizely style threshold (e.g. Risk < 0.0002)
+    risk_threshold = 0.0002
+    if loss_v < risk_threshold and prob_v_wins > 0.95:
+        st.success("✅ **STOP TEST: VARIATION WINS.** The risk of error is negligible.")
+    elif loss_c < risk_threshold and prob_v_wins < 0.05:
+        st.error("❌ **STOP TEST: CONTROL WINS.** The variation is clearly worse.")
+    else:
+        st.info("⏳ **KEEP RUNNING.** The risk is still too high to call a winner.")
         
-        analysis_text = generate_smart_analysis(user_hypothesis, metrics_payload)
-        st.markdown("---")
-        st.markdown(analysis_text)
+    st.markdown("---")
+    
+    # 2. Sequential Testing Calculator
+    st.markdown("#### 2. Sequential Testing (Peeking Penalty)")
+    st.write("If you check P-values every day, you increase the chance of a 'False Positive'. This calculator adjusts your P-value target.")
+    
+    peeks = st.number_input("How many times have you checked the results so far?", min_value=1, value=1)
+    
+    # Pocock Correction Approximation
+    # This is a simplified approximation for UI display
+    adjusted_alpha = 0.05 * np.log(1 + (np.e - 1) / peeks)
+    
+    st.write(f"Based on **{peeks} peeks**, your required P-value to claim significance is:")
+    col_seq_1, col_seq_2 = st.columns(2)
+    col_seq_1.metric("Standard Alpha", "0.0500")
+    col_seq_2.metric("Adjusted Alpha (Pocock)", f"{adjusted_alpha:.4f}")
+    
+    if p_value_z < adjusted_alpha:
+        st.success(f"✅ **SIGNIFICANT (Even with Peeking).** p={p_value_z:.4f} is lower than {adjusted_alpha:.4f}.")
+    elif p_value_z < 0.05:
+        st.warning(f"⚠️ **NOT SIGNIFICANT (Due to Peeking).** p={p_value_z:.4f} is good, but not enough for {peeks} peeks.")
+    else:
+        st.error("❌ **NOT SIGNIFICANT.**")
 
 # --- OTHER TABS ---
 with tab2:
-    plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
+    st.markdown("### 🧠 Smart Executive Summary")
+    user_hypothesis = st.text_area("What was your Hypothesis?", placeholder="e.g. We believed...", height=70)
+    if st.button("Generate Analysis"):
+        metrics_payload = {
+            "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
+            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+        }
+        st.markdown("---")
+        st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload))
+
 with tab3:
+    plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
+with tab4:
     col1, col2 = st.columns(2)
     with col1: plot_metric_comparison("Avg Products / Order", apo_c, apo_v, unit="")
     with col2: plot_metric_comparison("Avg Products / User", apu_c, apu_v, unit="")
-with tab4:
+with tab5:
     col1, col2 = st.columns(2)
     with col1: plot_metric_comparison("Revenue Per Visitor (RPV)", rpv_c, rpv_v, unit="$")
     with col2: plot_metric_comparison("Average Order Value (AOV)", aov_c, aov_v, unit="$")
-with tab5:
-    plot_metric_comparison("Conversion Rate", rate_c*100, rate_v*100, unit="")
 with tab6:
-    plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, conv_variation+1, users_variation-conv_variation+1)
+    plot_metric_comparison("Conversion Rate", rate_c*100, rate_v*100, unit="")
 with tab7:
+    plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, conv_variation+1, users_variation-conv_variation+1)
+with tab8:
     samples_c, samples_v, ci_low, ci_high = run_bootstrap_and_plot(users_control, conv_control, users_variation, conv_variation)
     st.write(f"**95% Confidence Interval:** {ci_low:.2f}% to {ci_high:.2f}%")
-with tab8:
+with tab9:
     plot_box_plot_analysis(samples_c, samples_v)
