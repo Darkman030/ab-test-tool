@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer (Final Edition)")
+st.title("A/B Test Analyzer v1.0")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
