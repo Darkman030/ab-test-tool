@@ -4,11 +4,10 @@ import matplotlib.pyplot as plt
 from scipy.stats import beta, chi2_contingency, ttest_ind_from_stats
 from statsmodels.stats.proportion import proportions_ztest, proportion_effectsize
 from statsmodels.stats.power import NormalIndPower
-import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("📊 Professional A/B Test Analyzer (Smart Logic Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -44,52 +43,81 @@ def calculate_uplift(ctrl, var):
     if ctrl == 0: return 0.0
     return ((var - ctrl) / ctrl) * 100
 
-def get_ai_analysis(api_key, hypothesis, metrics_dict):
+def generate_smart_analysis(hypothesis, metrics):
     """
-    Sends data to OpenAI for a professional analysis.
+    Generates a rule-based natural language analysis.
     """
-    if not api_key:
-        return "⚠️ Please enter your OpenAI API Key to generate the analysis."
+    report = []
     
-    try:
-        client = openai.OpenAI(api_key=api_key)
-        
-        prompt = f"""
-        You are a Senior Data Scientist at a top Conversion Rate Optimization (CRO) agency.
-        Analyze the results of this A/B test for a stakeholder presentation.
+    # 1. Executive Summary
+    report.append("### 📄 Executive Summary")
+    if metrics['p_srm'] < 0.01:
+        report.append(f"**CRITICAL ISSUE:** This test has a Sample Ratio Mismatch (SRM) with p={metrics['p_srm']:.4f}. The traffic was not split evenly. **The results are likely invalid.** Do not make decisions based on this data.")
+        return "\n\n".join(report) # Stop here if SRM fails
 
-        **The Hypothesis:**
-        "{hypothesis}"
+    if metrics['p_cr'] <= 0.05:
+        if metrics['uplift_cr'] > 0:
+            status = "WINNING"
+            report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT WINNER**.")
+        else:
+            status = "LOSING"
+            report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT LOSER**.")
+    else:
+        status = "INCONCLUSIVE"
+        report.append(f"The test is **INCONCLUSIVE**. We did not find a statistically significant difference in Conversion Rate (p={metrics['p_cr']:.4f}).")
 
-        **The Data:**
-        - Duration: {metrics_dict['days']} days
-        - Control Users: {metrics_dict['users_c']}, Variation Users: {metrics_dict['users_v']}
-        - SRM P-Value: {metrics_dict['p_srm']:.4f} (Should be > 0.01)
-        
-        **Primary Metrics:**
-        - Conversion Rate: Control {metrics_dict['cr_c']:.2f}% vs Variation {metrics_dict['cr_v']:.2f}% (Uplift: {metrics_dict['uplift_cr']:.2f}%)
-        - Statistical Significance (CR): p = {metrics_dict['p_cr']:.4f}
-        
-        **Secondary Metrics (Business Impact):**
-        - Average Order Value (AOV): Control ${metrics_dict['aov_c']:.2f} vs Variation ${metrics_dict['aov_v']:.2f} (Uplift: {metrics_dict['uplift_aov']:.2f}%)
-        - Revenue Per Visitor (RPV): Control ${metrics_dict['rpv_c']:.2f} vs Variation ${metrics_dict['rpv_v']:.2f} (Uplift: {metrics_dict['uplift_rpv']:.2f}%)
-        
-        **Your Task:**
-        1. Write a clear **"Executive Summary"** (Did we win? Was it significant?).
-        2. Analyze the **"Trade-off"** (Did volume go up but value down? Explain why).
-        3. Provide a **"Final Recommendation"** (Roll out, Roll back, or Iterate).
-        
-        Keep the tone professional, objective, and concise.
-        """
+    # 2. Detailed Breakdown
+    report.append("### 🔍 Performance Breakdown")
+    report.append(f"Over the course of **{metrics['days']} days**, we tracked **{metrics['users_c'] + metrics['users_v']:,} users**.")
+    
+    # CR Logic
+    report.append(f"- **Conversion Rate:** The Variation {'improved' if metrics['uplift_cr'] > 0 else 'decreased'} conversion rate by **{metrics['uplift_cr']:.2f}%**.")
+    
+    # AOV Logic
+    if abs(metrics['uplift_aov']) < 1.0:
+        aov_text = "remained stable"
+    else:
+        aov_text = f"{'increased' if metrics['uplift_aov'] > 0 else 'decreased'} by {metrics['uplift_aov']:.2f}%"
+    report.append(f"- **Average Order Value:** AOV {aov_text} (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
 
-        response = client.chat.completions.create(
-            model="gpt-4o", # Or gpt-3.5-turbo if you prefer
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"Error connecting to AI: {str(e)}"
+    # 3. Trade-off Analysis
+    report.append("### ⚖️ Strategic Trade-off Analysis")
+    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
+        report.append("⚠️ **Pattern Detected: The 'Discount Effect'.**")
+        report.append("You are driving more volume (Orders up), but value per order is down. This often happens with price cuts or easier checkout flows.")
+    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
+        report.append("⚠️ **Pattern Detected: The 'Luxury Effect'.**")
+        report.append("You are driving fewer orders, but each order is worth more. This happens when prices are raised or low-quality traffic is filtered out.")
+    else:
+        report.append("✅ **Consistent Trends.** Both Conversion Rate and AOV are moving in the same direction (or staying flat).")
+
+    # 4. Final Recommendation
+    report.append("### 🚀 Recommendation")
+    if metrics['uplift_rpv'] > 0:
+        financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
+        report.append(f"**Financial Outlook: POSITIVE.**")
+        report.append(f"The Variation generates **${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor**.")
+        report.append(f"If rolled out to 100,000 users, this would generate an extra **${financial_impact:,.0f}**.")
+        
+        if status == "WINNING":
+            report.append(f"**Action:** ✅ **ROLL OUT.** The test is statistically significant and financially positive.")
+        elif status == "INCONCLUSIVE":
+            report.append(f"**Action:** ⏳ **CONTINUE TESTING.** The financial trend is positive, but we lack statistical confidence.")
+    else:
+        report.append(f"**Financial Outlook: NEGATIVE.**")
+        report.append(f"The Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
+        report.append(f"**Action:** 🛑 **DO NOT ROLL OUT.** The variation is hurting overall revenue efficiency.")
+
+    # 5. Context from Hypothesis
+    if hypothesis:
+        report.append("### 🧠 Hypothesis Review")
+        report.append(f"**Your Goal:** *{hypothesis}*")
+        if (status == "WINNING" and metrics['uplift_rpv'] > 0):
+            report.append("The data **SUPPORTS** your hypothesis.")
+        else:
+            report.append("The data **DOES NOT SUPPORT** your hypothesis at this time.")
+
+    return "\n\n".join(report)
 
 # --- PLOTTING FUNCTIONS ---
 
@@ -97,8 +125,7 @@ def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
     fig, ax = plt.subplots(figsize=(8, 6))
     ax.scatter(cr_c, aov_c, color='blue', s=200, label='Control', zorder=5)
     ax.scatter(cr_v, aov_v, color='green', s=200, label='Variation', zorder=5)
-    ax.annotate("", xy=(cr_v, aov_v), xytext=(cr_c, aov_c),
-                arrowprops=dict(arrowstyle="->", color='gray', lw=1.5, ls='--'))
+    ax.annotate("", xy=(cr_v, aov_v), xytext=(cr_c, aov_c), arrowprops=dict(arrowstyle="->", color='gray', lw=1.5, ls='--'))
     ax.axvline(cr_c, color='gray', linestyle=':', alpha=0.5)
     ax.axhline(aov_c, color='gray', linestyle=':', alpha=0.5)
     ax.annotate("Control", (cr_c, aov_c), xytext=(0, 10), textcoords='offset points', ha='center', fontweight='bold', color='blue')
@@ -213,7 +240,6 @@ col4.caption("Higher 'Products / Order' means users are building bigger baskets.
 st.markdown("---")
 
 st.subheader("3. Executive Interpretation")
-rev_diff = rev_variation - (rev_control * (users_variation/users_control))
 if uplift_cr > 0 and uplift_aov < 0:
     st.warning("⚠️ **Trade-off Detected:** Variation drives MORE orders, but SMALLER baskets.")
 elif uplift_cr < 0 and uplift_aov > 0:
@@ -228,10 +254,10 @@ else:
 
 st.markdown("---")
 
-# --- TABS INCLUDING AI ---
+# --- TABS INCLUDING SMART ANALYSIS ---
 st.header("Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "🤖 AI Analysis", # New Tab
+    "🧠 Smart Analysis", # Renamed
     "Strategic Matrix", 
     "Product Metrics", 
     "Revenue Charts", 
@@ -241,41 +267,30 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Box Plot"
 ])
 
-# --- TAB 1: AI ANALYSIS ---
+# --- TAB 1: SMART ANALYSIS (Free) ---
 with tab1:
-    st.markdown("### 🤖 AI-Powered Executive Summary")
-    st.info("Enter your hypothesis and OpenAI API Key to generate a professional analysis of these results.")
+    st.markdown("### 🧠 Smart Executive Summary")
+    st.info("This report is generated automatically based on statistical rules (No API Key required).")
     
-    col_ai_1, col_ai_2 = st.columns(2)
-    with col_ai_1:
-        user_hypothesis = st.text_area("What was your Hypothesis?", 
-                                     placeholder="e.g., We believed that moving the CTA above the fold would increase conversion rate by reducing friction...",
-                                     height=100)
-    with col_ai_2:
-        api_key_input = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
-        st.caption("Your key is not saved and is used only for this session.")
+    user_hypothesis = st.text_area("What was your Hypothesis?", 
+                                 placeholder="e.g., We believed that moving the CTA above the fold would increase conversion rate...",
+                                 height=70)
     
-    if st.button("Generate AI Analysis"):
-        if not user_hypothesis:
-            st.error("Please enter a hypothesis first.")
-        else:
-            with st.spinner("Analyzing data patterns..."):
-                # Pack data for AI
-                metrics_payload = {
-                    "days": days_run,
-                    "users_c": users_control, "users_v": users_variation,
-                    "p_srm": p_value_srm,
-                    "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-                    "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov,
-                    "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
-                }
-                
-                # Get Result
-                analysis_text = get_ai_analysis(api_key_input, user_hypothesis, metrics_payload)
-                st.markdown("---")
-                st.markdown(analysis_text)
+    if st.button("Generate Analysis Report"):
+        metrics_payload = {
+            "days": days_run,
+            "users_c": users_control, "users_v": users_variation,
+            "p_srm": p_value_srm,
+            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov,
+            "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+        }
+        
+        analysis_text = generate_smart_analysis(user_hypothesis, metrics_payload)
+        st.markdown("---")
+        st.markdown(analysis_text)
 
-# --- OTHER TABS (Same as before) ---
+# --- OTHER TABS ---
 with tab2:
     plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
 with tab3:
