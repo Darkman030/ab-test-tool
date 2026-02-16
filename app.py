@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer V0.8")
+st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -111,10 +111,13 @@ def generate_smart_analysis(hypothesis, metrics):
 
     if metrics['p_cr'] <= 0.05:
         if metrics['uplift_cr'] > 0:
+            status = "WINNING"
             report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT WINNER**.")
         else:
+            status = "LOSING"
             report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT LOSER**.")
     else:
+        status = "INCONCLUSIVE"
         report.append(f"The test is **INCONCLUSIVE** (p={metrics['p_cr']:.4f}).")
 
     # 2. Data Health
@@ -333,8 +336,12 @@ with tab1:
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
         }
+        smart_result = generate_smart_analysis(user_hypothesis, metrics_payload)
         st.markdown("---")
-        st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload))
+        st.markdown(smart_result)
+        
+        st.markdown("### 📋 Copy Report")
+        st.code(smart_result, language='markdown')
 
 # --- TAB 2: AI ANALYSIS ---
 with tab2:
@@ -348,9 +355,8 @@ with tab2:
     user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="We believed that...", height=100, key="hyp_ai")
     
     if st.button("Generate AI Analysis"):
-        # Calculate Quick Confidence Interval for Context
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
-        diff_ci_low = (ci_low - rate_c) * 100 # Approx difference
+        diff_ci_low = (ci_low - rate_c) * 100
         diff_ci_high = (ci_high - rate_c) * 100
 
         metrics_payload = {
@@ -362,8 +368,12 @@ with tab2:
         
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
         with st.spinner(f"Connecting to {provider_name}..."):
+            ai_result = get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name)
             st.markdown("---")
-            st.markdown(get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name))
+            st.markdown(ai_result)
+            
+            st.markdown("### 📋 Copy Report")
+            st.code(ai_result, language='markdown')
 
 # --- TAB 3: STOPPING & SEQUENTIAL ---
 with tab3:
