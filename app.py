@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer (Hybrid Edition)")
+st.title("📊 Professional A/B Test Analyzer (Multi-AI Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -43,15 +43,24 @@ def calculate_uplift(ctrl, var):
     if ctrl == 0: return 0.0
     return ((var - ctrl) / ctrl) * 100
 
-def get_ai_analysis(api_key, hypothesis, metrics_dict):
+def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
     """
-    Sends data to OpenAI for a professional analysis (Requires Key).
+    Sends data to OpenAI or DeepSeek for analysis.
     """
     if not api_key:
-        return "⚠️ Please enter a valid OpenAI API Key to generate this analysis."
+        return "⚠️ Please enter a valid API Key to generate this analysis."
     
+    # CONFIGURE PROVIDER
+    if provider == "DeepSeek":
+        base_url = "https://api.deepseek.com"
+        model_name = "deepseek-reasoner" # Uses the R1 Reasoning model
+    else:
+        base_url = "https://api.openai.com/v1"
+        model_name = "gpt-4o"
+
     try:
-        client = openai.OpenAI(api_key=api_key)
+        # We use the standard OpenAI client, but change the 'base_url' if using DeepSeek
+        client = openai.OpenAI(api_key=api_key, base_url=base_url)
         
         prompt = f"""
         You are a Senior Data Scientist at a top Conversion Rate Optimization (CRO) agency.
@@ -76,7 +85,7 @@ def get_ai_analysis(api_key, hypothesis, metrics_dict):
         """
 
         response = client.chat.completions.create(
-            model="gpt-4o", 
+            model=model_name, 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7
         )
@@ -301,9 +310,9 @@ st.markdown("---")
 # --- TABS ---
 st.header("Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
+    "🧠 Smart Analysis", # FREE
+    "🤖 AI Analysis (DeepSeek/GPT)", # API
     "🛑 Stopping Rules", 
-    "🧠 Smart Analysis (Free)",
-    "🤖 AI Analysis (GPT)", # New Tab
     "Strategic Matrix", 
     "Product Metrics", 
     "Revenue Charts", 
@@ -313,9 +322,50 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "Box Plot"
 ])
 
-# --- TAB 1: STOPPING & RISK ---
+# --- TAB 1: SMART ANALYSIS (Logic Powered) ---
 with tab1:
-    st.markdown("### 🛑 Stopping Rules & Sequential Testing")
+    st.markdown("### 🧠 Smart Executive Summary (Free)")
+    st.info("Generated instantly using statistical rules (No API Key required).")
+    user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
+    if st.button("Generate Smart Analysis"):
+        metrics_payload = {
+            "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
+            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+        }
+        st.markdown("---")
+        st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload))
+
+# --- TAB 2: AI ANALYSIS (DeepSeek/OpenAI) ---
+with tab2:
+    st.markdown("### 🤖 AI-Powered Analysis")
+    
+    col_prov, col_key = st.columns(2)
+    with col_prov:
+        ai_provider = st.selectbox("Select Provider", ["OpenAI (GPT-4o)", "DeepSeek (R1)"])
+    with col_key:
+        api_key_input = st.text_input("Enter API Key", type="password")
+    
+    st.caption("DeepSeek is significantly cheaper. OpenAI is the industry standard.")
+    
+    user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="We believed that...", height=100, key="hyp_ai")
+    
+    if st.button("Generate AI Analysis"):
+        metrics_payload = {
+            "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
+            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+        }
+        # Parse Provider Name for function
+        provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
+        
+        with st.spinner(f"Connecting to {provider_name}..."):
+            st.markdown("---")
+            st.markdown(get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name))
+
+# --- TAB 3: STOPPING RULES ---
+with tab3:
+    st.markdown("### 🛑 Stopping Rules & Risk")
     prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
         conv_control+1, users_control-conv_control+1, 
         conv_variation+1, users_variation-conv_variation+1
@@ -326,7 +376,6 @@ with tab1:
     c3.metric("Risk (Stay)", f"{loss_c*100:.5f}%")
     
     st.markdown("---")
-    st.markdown("#### Sequential Testing")
     peeks = st.number_input("How many times have you checked the results?", min_value=1, value=1)
     adjusted_alpha = 0.05 * np.log(1 + (np.e - 1) / peeks)
     st.write(f"Adjusted significance threshold: **{adjusted_alpha:.4f}**")
@@ -334,39 +383,6 @@ with tab1:
         st.success(f"✅ **SIGNIFICANT** (p={p_value_z:.4f})")
     else:
         st.error(f"❌ **NOT SIGNIFICANT** (p={p_value_z:.4f})")
-
-# --- TAB 2: SMART ANALYSIS ---
-with tab2:
-    st.markdown("### 🧠 Smart Executive Summary")
-    user_hypothesis = st.text_area("Hypothesis (Smart Logic):", placeholder="e.g. We believed...", height=70, key="hyp_smart")
-    if st.button("Generate Smart Analysis"):
-        metrics_payload = {
-            "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
-            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
-        }
-        st.markdown("---")
-        st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload))
-
-# --- TAB 3: AI ANALYSIS (OPENAI) ---
-with tab3:
-    st.markdown("### 🤖 AI-Powered Analysis (Requires Key)")
-    st.info("Enter your OpenAI API Key to generate a custom analysis.")
-    col_ai_1, col_ai_2 = st.columns(2)
-    with col_ai_1:
-        user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="e.g. We believed...", height=100, key="hyp_ai")
-    with col_ai_2:
-        api_key_input = st.text_input("OpenAI API Key", type="password", placeholder="sk-...")
-    
-    if st.button("Generate AI Analysis"):
-        metrics_payload = {
-            "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
-            "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
-        }
-        with st.spinner("Analyzing..."):
-            st.markdown("---")
-            st.markdown(get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload))
 
 # --- OTHER TABS ---
 with tab4: plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
