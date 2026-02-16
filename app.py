@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("📊 Professional A/B Test Analyzer (Smart Logic Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -45,16 +45,21 @@ def calculate_uplift(ctrl, var):
 
 def generate_smart_analysis(hypothesis, metrics):
     """
-    Generates a rule-based natural language analysis.
+    Generates a rule-based natural language analysis including Health Checks.
     """
     report = []
     
     # 1. Executive Summary
     report.append("### 📄 Executive Summary")
+    
+    # SRM Check (The most critical failure)
     if metrics['p_srm'] < 0.01:
-        report.append(f"**CRITICAL ISSUE:** This test has a Sample Ratio Mismatch (SRM) with p={metrics['p_srm']:.4f}. The traffic was not split evenly. **The results are likely invalid.** Do not make decisions based on this data.")
-        return "\n\n".join(report) # Stop here if SRM fails
+        report.append(f"❌ **CRITICAL FAILURE:** Sample Ratio Mismatch (SRM) detected (p={metrics['p_srm']:.4f}).")
+        report.append("The traffic was not split evenly between Control and Variation. This usually indicates a bug in the redirect or tracking code.")
+        report.append("**VERDICT:** Do not analyze these results. They are statistically invalid.")
+        return "\n\n".join(report) # Stop generation here
 
+    # Primary Result Logic
     if metrics['p_cr'] <= 0.05:
         if metrics['uplift_cr'] > 0:
             status = "WINNING"
@@ -66,21 +71,36 @@ def generate_smart_analysis(hypothesis, metrics):
         status = "INCONCLUSIVE"
         report.append(f"The test is **INCONCLUSIVE**. We did not find a statistically significant difference in Conversion Rate (p={metrics['p_cr']:.4f}).")
 
-    # 2. Detailed Breakdown
-    report.append("### 🔍 Performance Breakdown")
-    report.append(f"Over the course of **{metrics['days']} days**, we tracked **{metrics['users_c'] + metrics['users_v']:,} users**.")
+    # 2. Data Health & Validity (RESTORED!)
+    report.append("### 🛡️ Data Health & Validity")
     
-    # CR Logic
+    # Duration Check
+    if metrics['days'] < 7:
+        report.append(f"⚠️ **Duration Warning:** The test ran for only {metrics['days']} days (less than a week).")
+        report.append("   - Risk: Results may be skewed by daily traffic cycles (e.g., weekends vs weekdays).")
+        report.append("   - Advice: Run for at least 1 full week.")
+    elif metrics['days'] < 14:
+        report.append(f"⚠️ **Duration Caution:** The test ran for {metrics['days']} days (less than 2 weeks).")
+        report.append("   - Risk: Be careful of 'Novelty Effects' where users click just because it's new.")
+        report.append("   - Advice: Ideally run for 14 days to capture two full business cycles.")
+    else:
+        report.append(f"✅ **Duration:** Healthy. The test ran for {metrics['days']} days, capturing sufficient weekly cycles.")
+
+    # SRM Confirmation
+    report.append(f"✅ **SRM Check:** Passed (p={metrics['p_srm']:.4f}). Traffic split is balanced.")
+
+    # 3. Performance Breakdown
+    report.append("### 🔍 Performance Breakdown")
+    report.append(f"Over the course of the test, we tracked **{metrics['users_c'] + metrics['users_v']:,} users**.")
     report.append(f"- **Conversion Rate:** The Variation {'improved' if metrics['uplift_cr'] > 0 else 'decreased'} conversion rate by **{metrics['uplift_cr']:.2f}%**.")
     
-    # AOV Logic
     if abs(metrics['uplift_aov']) < 1.0:
         aov_text = "remained stable"
     else:
         aov_text = f"{'increased' if metrics['uplift_aov'] > 0 else 'decreased'} by {metrics['uplift_aov']:.2f}%"
     report.append(f"- **Average Order Value:** AOV {aov_text} (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
 
-    # 3. Trade-off Analysis
+    # 4. Strategic Trade-off Analysis
     report.append("### ⚖️ Strategic Trade-off Analysis")
     if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
         report.append("⚠️ **Pattern Detected: The 'Discount Effect'.**")
@@ -91,7 +111,7 @@ def generate_smart_analysis(hypothesis, metrics):
     else:
         report.append("✅ **Consistent Trends.** Both Conversion Rate and AOV are moving in the same direction (or staying flat).")
 
-    # 4. Final Recommendation
+    # 5. Final Recommendation
     report.append("### 🚀 Recommendation")
     if metrics['uplift_rpv'] > 0:
         financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
@@ -99,8 +119,10 @@ def generate_smart_analysis(hypothesis, metrics):
         report.append(f"The Variation generates **${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor**.")
         report.append(f"If rolled out to 100,000 users, this would generate an extra **${financial_impact:,.0f}**.")
         
-        if status == "WINNING":
-            report.append(f"**Action:** ✅ **ROLL OUT.** The test is statistically significant and financially positive.")
+        if status == "WINNING" and metrics['days'] >= 14:
+            report.append(f"**Action:** ✅ **ROLL OUT.** The test is statistically significant, financially positive, and ran for a sufficient duration.")
+        elif status == "WINNING" and metrics['days'] < 14:
+            report.append(f"**Action:** ⏳ **WAIT.** The result is positive, but the test duration is short. Run for {14 - metrics['days']} more days to confirm.")
         elif status == "INCONCLUSIVE":
             report.append(f"**Action:** ⏳ **CONTINUE TESTING.** The financial trend is positive, but we lack statistical confidence.")
     else:
@@ -108,7 +130,7 @@ def generate_smart_analysis(hypothesis, metrics):
         report.append(f"The Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
         report.append(f"**Action:** 🛑 **DO NOT ROLL OUT.** The variation is hurting overall revenue efficiency.")
 
-    # 5. Context from Hypothesis
+    # 6. Context from Hypothesis
     if hypothesis:
         report.append("### 🧠 Hypothesis Review")
         report.append(f"**Your Goal:** *{hypothesis}*")
@@ -252,12 +274,29 @@ if uplift_rpv > 0:
 else:
     st.write(f"**Financial Impact:** The Variation generates **${rpv_c - rpv_v:.2f} less per visitor**.")
 
+# 4. HEALTH CHECKS (Visual Badge Section)
+st.subheader("4. Health Checks")
+col1, col2 = st.columns(2)
+with col1:
+    if p_value_srm < 0.01:
+        st.error(f"❌ **SRM DETECTED (p={p_value_srm:.4f})**")
+    else:
+        st.success(f"✅ **SRM PASSED (p={p_value_srm:.4f})**")
+
+with col2:
+    if days_run < 7:
+        st.error(f"❌ **Too Short ({days_run} Days)**")
+    elif days_run < 14:
+        st.warning(f"⚠️ **Short Duration ({days_run} Days)**")
+    else:
+        st.success(f"✅ **Duration OK ({days_run} Days)**")
+
 st.markdown("---")
 
-# --- TABS INCLUDING SMART ANALYSIS ---
+# --- TABS ---
 st.header("Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-    "🧠 Smart Analysis", # Renamed
+    "🧠 Smart Analysis", 
     "Strategic Matrix", 
     "Product Metrics", 
     "Revenue Charts", 
@@ -267,10 +306,10 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "Box Plot"
 ])
 
-# --- TAB 1: SMART ANALYSIS (Free) ---
+# --- TAB 1: SMART ANALYSIS (Logic Powered) ---
 with tab1:
     st.markdown("### 🧠 Smart Executive Summary")
-    st.info("This report is generated automatically based on statistical rules.")
+    st.info("This report is generated automatically based on statistical rules (No API Key required).")
     
     user_hypothesis = st.text_area("What was your Hypothesis?", 
                                  placeholder="e.g., We believed that moving the CTA above the fold would increase conversion rate...",
