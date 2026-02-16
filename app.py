@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer (Full Suite)")
+st.title("A/B Test Analyzer")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -46,9 +46,6 @@ def calculate_uplift(ctrl, var):
 # --- PLOTTING FUNCTIONS ---
 
 def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
-    """
-    Scatter plot to show the trade-off between CR and AOV.
-    """
     fig, ax = plt.subplots(figsize=(8, 6))
     
     # Plot Points
@@ -59,7 +56,7 @@ def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
     ax.annotate("", xy=(cr_v, aov_v), xytext=(cr_c, aov_c),
                 arrowprops=dict(arrowstyle="->", color='gray', lw=1.5, ls='--'))
 
-    # Draw Crosshairs based on Control
+    # Draw Crosshairs
     ax.axvline(cr_c, color='gray', linestyle=':', alpha=0.5)
     ax.axhline(aov_c, color='gray', linestyle=':', alpha=0.5)
     
@@ -67,13 +64,11 @@ def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
     ax.text(cr_c, aov_c + (aov_c*0.02), "Control", ha='center', fontweight='bold', color='blue')
     ax.text(cr_v, aov_v + (aov_v*0.02), "Variation", ha='center', fontweight='bold', color='green')
     
-    # Set Axis Labels
     ax.set_title("Strategic Matrix: Volume (CR) vs Value (AOV)")
     ax.set_xlabel("Conversion Rate (%)")
     ax.set_ylabel("Average Order Value ($)")
     ax.grid(True, alpha=0.3)
     ax.legend()
-    
     st.pyplot(fig)
 
 def plot_metric_comparison(name, val_c, val_v, unit=""):
@@ -143,7 +138,7 @@ rate_c = conv_control / users_control
 rate_v = conv_variation / users_variation
 uplift_cr = calculate_uplift(rate_c, rate_v)
 
-# 2. Revenue Metrics (RPV, AOV)
+# 2. Revenue Metrics
 aov_c = rev_control / conv_control if conv_control > 0 else 0
 aov_v = rev_variation / conv_variation if conv_variation > 0 else 0
 uplift_aov = calculate_uplift(aov_c, aov_v)
@@ -181,10 +176,12 @@ else:
     col4.info(f"CR Sig: NO (p={p_value_z:.4f})")
 
 st.subheader("2. Product Velocity")
-col1, col2, col3 = st.columns(3)
+# FIX: Use 5 columns here too, to match the grid above
+col1, col2, col3, col4, col5 = st.columns(5) 
 col1.metric("Avg Products / Order", f"{apo_v:.2f}", f"{uplift_apo:+.2f}%")
 col2.metric("Avg Products / User", f"{apu_v:.2f}", f"{uplift_apu:+.2f}%")
-col3.caption("Higher 'Products / Order' means users are building bigger baskets.")
+# Col3 is left empty to create the gap
+col4.caption("Higher 'Products / Order' means users are building bigger baskets.")
 
 st.markdown("---")
 
