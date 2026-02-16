@@ -1,20 +1,27 @@
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import beta, chi2_contingency
+from scipy.stats import beta, chi2_contingency, ttest_ind_from_stats
 from statsmodels.stats.proportion import proportions_ztest, proportion_effectsize
 from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("📊 Professional A/B Test Analyzer (Conversion + Revenue)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
 users_control = st.sidebar.number_input("Control Users", min_value=1, value=5000)
 conv_control = st.sidebar.number_input("Control Conversions", min_value=0, value=500)
+rev_control = st.sidebar.number_input("Control Total Revenue ($)", min_value=0.0, value=25000.0)
+
+st.sidebar.markdown("---")
+
 users_variation = st.sidebar.number_input("Variation Users", min_value=1, value=5000)
 conv_variation = st.sidebar.number_input("Variation Conversions", min_value=0, value=600)
+rev_variation = st.sidebar.number_input("Variation Total Revenue ($)", min_value=0.0, value=33000.0)
+
+st.sidebar.markdown("---")
 days_run = st.sidebar.number_input("Days Test Ran", min_value=1, value=14)
 
 # --- HELPER FUNCTIONS ---
@@ -27,22 +34,25 @@ def perform_srm_test(observed_users, expected_split=(0.5, 0.5)):
 
 # --- PLOTTING FUNCTIONS ---
 
-def plot_cumulative_conversion_comparison(control_rate, variation_rate):
+def plot_metric_comparison(name, val_c, val_v, unit=""):
+    """Generic bar chart for any metric (AOV, RPV, CR)"""
     fig, ax = plt.subplots(figsize=(8, 5))
     groups = ['Control', 'Variation']
-    rates = [control_rate, variation_rate]
+    values = [val_c, val_v]
+    
     # Dynamic colors: Green for winner, Red for loser
-    if variation_rate >= control_rate:
-        colors = ['#1f77b4', '#2ca02c'] # Control Blue, Variation Green
+    if val_v >= val_c:
+        colors = ['#1f77b4', '#2ca02c'] # Blue, Green
     else:
-        colors = ['#1f77b4', '#d62728'] # Control Blue, Variation Red
+        colors = ['#1f77b4', '#d62728'] # Blue, Red
         
-    ax.bar(groups, rates, color=colors, alpha=0.8)
-    ax.set_title('Conversion Rate Comparison')
-    ax.set_ylabel('Conversion Rate (%)')
-    ax.set_ylim(0, max(rates) * 1.15)
-    for i, rate in enumerate(rates):
-        ax.text(i, rate + (max(rates)*0.01), f"{rate:.2f}%", ha='center', va='bottom', fontweight='bold')
+    ax.bar(groups, values, color=colors, alpha=0.8)
+    ax.set_title(f'{name} Comparison')
+    ax.set_ylabel(name)
+    ax.set_ylim(0, max(values) * 1.15)
+    
+    for i, v in enumerate(values):
+        ax.text(i, v + (max(values)*0.01), f"{unit}{v:.2f}", ha='center', va='bottom', fontweight='bold')
     st.pyplot(fig)
 
 def plot_bayesian_pdfs(alpha_c, beta_c, alpha_v, beta_v):
@@ -55,25 +65,9 @@ def plot_bayesian_pdfs(alpha_c, beta_c, alpha_v, beta_v):
     ax.fill_between(x, beta(alpha_c, beta_c).pdf(x), 0, alpha=0.3, color='blue')
     ax.plot(x, beta(alpha_v, beta_v).pdf(x), label='Variation', color='green')
     ax.fill_between(x, beta(alpha_v, beta_v).pdf(x), 0, alpha=0.3, color='green')
-    ax.set_title('Bayesian Probability Density')
+    ax.set_title('Bayesian Probability Density (Conversion Rate)')
     ax.set_xlabel('Conversion Rate')
     ax.legend()
-    ax.grid(True, alpha=0.3)
-    st.pyplot(fig)
-
-def plot_cumulative_diff_distribution(alpha_c, beta_c, alpha_v, beta_v):
-    samples_c = beta(alpha_c, beta_c).rvs(10000)
-    samples_v = beta(alpha_v, beta_v).rvs(10000)
-    diff = samples_v - samples_c
-
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.hist(diff, bins=50, density=True, cumulative=True, color='purple', alpha=0.6, edgecolor='purple')
-    ax.set_title('Cumulative Probability of Uplift')
-    ax.set_xlabel('Difference in Conversion Rate')
-    ax.set_ylabel('Cumulative Probability')
-    ax.axvline(x=0, color='red', linestyle='--', label='No Effect (0)')
-    ax.legend()
-    ax.grid(True, alpha=0.5)
     st.pyplot(fig)
 
 def run_bootstrap_and_plot(users_c, conv_c, users_v, conv_v, n_bootstrap=10000):
@@ -106,90 +100,136 @@ def plot_box_plot_analysis(sim_samples_c, sim_samples_v):
     ax.grid(True, linestyle='--', alpha=0.6)
     st.pyplot(fig)
 
-# --- MAIN LOGIC ---
+# --- METRIC CALCULATIONS ---
 
-# Calculations
+# 1. Conversion Rate
 rate_c = conv_control / users_control
 rate_v = conv_variation / users_variation
-uplift = ((rate_v - rate_c) / rate_c) * 100
+uplift_cr = ((rate_v - rate_c) / rate_c) * 100
 
-# Stats
+# 2. Average Order Value (AOV) = Revenue / Conversions
+# Handle divide by zero safety
+aov_c = rev_control / conv_control if conv_control > 0 else 0
+aov_v = rev_variation / conv_variation if conv_variation > 0 else 0
+uplift_aov = ((aov_v - aov_c) / aov_c) * 100 if aov_c > 0 else 0
+
+# 3. Revenue Per Visitor (RPV) = Revenue / Users
+rpv_c = rev_control / users_control
+rpv_v = rev_variation / users_variation
+uplift_rpv = ((rpv_v - rpv_c) / rpv_c) * 100
+
+# --- STATISTICAL TESTS ---
+
+# Z-Test for Conversion Rate
 z_stat, p_value_z = proportions_ztest([conv_control, conv_variation], [users_control, users_variation])
+
+# SRM Test
 chi2_val, p_value_srm = perform_srm_test([users_control, users_variation])
 
-# --- RESULTS DASHBOARD ---
+# T-Test for RPV (Approximate using aggregated data)
+# We assume standard deviation is roughly AOV (common approximation when raw data is missing)
+# This is a "rough estimation" since we don't have row-level data.
+std_dev_c = aov_c * 1.5 # Heuristic: Ecommerce std dev is often 1.5x - 2x the AOV
+std_dev_v = aov_v * 1.5
+t_stat_rpv, p_value_rpv = ttest_ind_from_stats(
+    mean1=rpv_c, std1=std_dev_c, nobs1=users_control,
+    mean2=rpv_v, std2=std_dev_v, nobs2=users_variation,
+    equal_var=False
+)
+
+# --- DASHBOARD ---
 
 st.header("Results Summary")
-col1, col2, col3 = st.columns(3)
+
+# Top Row: Conversion Rate
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("Control CR", f"{rate_c*100:.2f}%")
 col2.metric("Variation CR", f"{rate_v*100:.2f}%")
-col3.metric("Relative Uplift", f"{uplift:+.2f}%", delta_color="normal")
+col3.metric("CR Uplift", f"{uplift_cr:+.2f}%", delta_color="normal")
+if p_value_z <= 0.05:
+    col4.success(f"Significant (p={p_value_z:.4f})")
+else:
+    col4.info(f"Not Sig (p={p_value_z:.4f})")
+
+# Middle Row: RPV (The most important business metric)
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Control RPV", f"${rpv_c:.2f}")
+col2.metric("Variation RPV", f"${rpv_v:.2f}")
+col3.metric("RPV Uplift", f"{uplift_rpv:+.2f}%", delta_color="normal")
+if p_value_rpv <= 0.05:
+    col4.success(f"Significant (p={p_value_rpv:.4f})*")
+else:
+    col4.info(f"Not Sig (p={p_value_rpv:.4f})*")
+st.caption("*RPV significance is estimated using aggregated data t-test.")
+
+# Bottom Row: AOV
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Control AOV", f"${aov_c:.2f}")
+col2.metric("Variation AOV", f"${aov_v:.2f}")
+col3.metric("AOV Uplift", f"{uplift_aov:+.2f}%", delta_color="normal")
+col4.write("") # No stat test for AOV alone usually needed
 
 st.markdown("---")
 
-# 1. P-Value (SMART LOGIC UPDATE)
-st.subheader("1. Statistical Significance")
+# --- INTERPRETATION SECTIONS ---
 
+# 1. Primary Metric (Conversion Rate) Logic
+st.subheader("1. Conversion Rate Analysis")
 if p_value_z <= 0.05:
-    if uplift > 0:
-        st.success(f"✅ **SIGNIFICANT WIN (p={p_value_z:.4f})**")
-        st.write(f"The Variation is performing significantly **BETTER** than Control.")
-        st.write(f"There is only a {p_value_z*100:.2f}% chance this happened by luck.")
+    if uplift_cr > 0:
+        st.success(f"✅ **WINNER:** Variation CR is significantly higher.")
     else:
-        st.error(f"❌ **SIGNIFICANT LOSS (p={p_value_z:.4f})**")
-        st.write(f"The Variation is performing significantly **WORSE** than Control.")
-        st.write(f"There is only a {p_value_z*100:.2f}% chance this happened by luck.")
+        st.error(f"❌ **LOSER:** Variation CR is significantly lower.")
 else:
-    st.info(f"⚠️ **NOT SIGNIFICANT (p={p_value_z:.4f})**")
-    st.write(f"There is a {p_value_z*100:.2f}% chance this difference is just random noise.")
-    st.write("We cannot confidently say there is a real difference yet.")
+    st.info(f"⚠️ **INCONCLUSIVE:** No significant difference in Conversion Rate.")
 
-# 2. SRM Check
-st.subheader("2. Sample Ratio Mismatch (SRM) Check")
-if p_value_srm < 0.01:
-    st.error(f"❌ **CRITICAL WARNING: SRM DETECTED (p={p_value_srm:.4f})**")
-    st.write("The traffic split is NOT balanced. **Do not trust these results.** Check for bugs in your redirect or tracking.")
-    st.write(f"Observed split: {users_control} vs {users_variation}")
+# 2. Business Metric (Revenue) Logic
+st.subheader("2. Revenue Impact Analysis")
+rev_diff = rev_variation - (rev_control * (users_variation/users_control)) # Normalized revenue diff
+if uplift_rpv > 0:
+    st.write(f"The Variation is generating **${rpv_v - rpv_c:.2f} more per visitor**.")
+    st.write(f"If you rolled this out to 100,000 users, you would make an extra **${(rpv_v - rpv_c)*100000:,.0f}**.")
 else:
-    st.success(f"✅ **PASS (p={p_value_srm:.4f})**")
-    st.write("Traffic split looks healthy.")
+    st.write(f"The Variation is generating **${rpv_c - rpv_v:.2f} less per visitor**.")
 
-# 3. Duration Check
-st.subheader("3. Duration Check")
-if days_run < 14:
-    if p_value_z <= 0.05:
-        st.warning(f"⚠️ **Test ran for only {days_run} days.** Even if significant, this might be a 'False Positive'. Recommendation: 14+ days.")
+# 3. Safety Checks
+st.subheader("3. Health Checks")
+col1, col2 = st.columns(2)
+with col1:
+    if p_value_srm < 0.01:
+        st.error(f"❌ **SRM DETECTED (p={p_value_srm:.4f})**")
     else:
-        st.warning(f"⚠️ **Test ran for only {days_run} days.** Data is likely insufficient.")
-else:
-    st.success(f"✅ **{days_run} days is a healthy duration.**")
+        st.success(f"✅ **SRM PASSED (p={p_value_srm:.4f})**")
+
+with col2:
+    if days_run < 14:
+        st.warning(f"⚠️ **Too Short ({days_run} Days)**")
+    else:
+        st.success(f"✅ **Duration OK ({days_run} Days)**")
 
 st.markdown("---")
 
 # --- VISUALIZATIONS ---
 st.header("Visualizations")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Comparison", "Bayesian", "Cumulative Uplift", "Bootstrap", "Box Plot"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Revenue Charts", "CR Comparison", "Bayesian", "Bootstrap", "Box Plot"])
 
 with tab1:
-    plot_cumulative_conversion_comparison(rate_c*100, rate_v*100)
+    col1, col2 = st.columns(2)
+    with col1:
+        plot_metric_comparison("Revenue Per Visitor (RPV)", rpv_c, rpv_v, unit="$")
+    with col2:
+        plot_metric_comparison("Average Order Value (AOV)", aov_c, aov_v, unit="$")
 
 with tab2:
-    plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, 
-                       conv_variation+1, users_variation-conv_variation+1)
+    plot_metric_comparison("Conversion Rate", rate_c*100, rate_v*100, unit="")
 
 with tab3:
-    plot_cumulative_diff_distribution(conv_control+1, users_control-conv_control+1, 
-                                      conv_variation+1, users_variation-conv_variation+1)
+    plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, 
+                       conv_variation+1, users_variation-conv_variation+1)
 
 with tab4:
     samples_c, samples_v, ci_low, ci_high = run_bootstrap_and_plot(users_control, conv_control, users_variation, conv_variation)
     st.write(f"**95% Confidence Interval:** {ci_low:.2f}% to {ci_high:.2f}%")
-    if ci_low > 0:
-        st.success("✅ **Positive Outcome:** The entire interval is above 0. Variation wins.")
-    elif ci_high < 0:
-        st.error("❌ **Negative Outcome:** The entire interval is below 0. Variation loses.")
-    else:
-        st.info("⚠️ **Inconclusive:** The interval crosses 0.")
 
 with tab5:
     plot_box_plot_analysis(samples_c, samples_v)
