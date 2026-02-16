@@ -2,12 +2,12 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import beta, chi2_contingency
-from statsmodels.stats.proportion import proportions_ztest
+from statsmodels.stats.proportion import proportions_ztest, proportion_confint
 import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer v0.7")
+st.title("📊 Professional A/B Test Analyzer (Multi-AI Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -73,11 +73,22 @@ def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
         - CR: {metrics_dict['cr_c']:.2f}% vs {metrics_dict['cr_v']:.2f}% (Uplift: {metrics_dict['uplift_cr']:.2f}%, p={metrics_dict['p_cr']:.4f})
         - AOV: ${metrics_dict['aov_c']:.2f} vs ${metrics_dict['aov_v']:.2f} (Uplift: {metrics_dict['uplift_aov']:.2f}%)
         - RPV: ${metrics_dict['rpv_c']:.2f} vs ${metrics_dict['rpv_v']:.2f} (Uplift: {metrics_dict['uplift_rpv']:.2f}%)
+        - 95% Confidence Interval (Absolute Diff): {metrics_dict['ci_low']:.2f}% to {metrics_dict['ci_high']:.2f}%
         
         **Task:**
         1. Executive Summary (Win/Loss/Inconclusive).
         2. Trade-off Analysis (Volume vs Value).
         3. Final Recommendation (Roll out/Roll back).
+        
+        **4. Visual Analysis (Graph-by-Graph):**
+        Please write 1-2 paragraphs interpreting EACH of the following graphs based on the data above:
+        - **Strategic Matrix:** Interpret the position of the dots (CR vs AOV trade-off).
+        - **Product Metrics:** Analyze the "Avg Products per Order" and "Avg Products per User".
+        - **Revenue Charts:** Compare RPV and AOV bars.
+        - **CR Comparison:** Interpret the simple bar chart difference.
+        - **Bayesian:** Describe the probability density curves (overlap means uncertainty, separation means confidence).
+        - **Bootstrap:** Interpret the histogram of differences using the CI ({metrics_dict['ci_low']:.2f}% to {metrics_dict['ci_high']:.2f}%).
+        - **Box Plot:** Interpret the spread/variability of the conversion rates.
         """
 
         response = client.chat.completions.create(
@@ -100,13 +111,10 @@ def generate_smart_analysis(hypothesis, metrics):
 
     if metrics['p_cr'] <= 0.05:
         if metrics['uplift_cr'] > 0:
-            status = "WINNING"
             report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT WINNER**.")
         else:
-            status = "LOSING"
             report.append(f"The Variation is a **STATISTICALLY SIGNIFICANT LOSER**.")
     else:
-        status = "INCONCLUSIVE"
         report.append(f"The test is **INCONCLUSIVE** (p={metrics['p_cr']:.4f}).")
 
     # 2. Data Health
@@ -135,7 +143,6 @@ def generate_smart_analysis(hypothesis, metrics):
         financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
         report.append(f"**Financial Outlook: POSITIVE.**")
         report.append(f"Variation generates **${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor**.")
-        report.append(f"Projected impact per 100k users: **+${financial_impact:,.0f}**.")
     else:
         report.append(f"**Financial Outlook: NEGATIVE.**")
         report.append(f"Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
@@ -305,7 +312,7 @@ st.header("Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🧠 Smart Analysis", 
     "🤖 AI Analysis", 
-    "🛑 Stopping & Sequential", # RENAMED
+    "🛑 Stopping & Sequential", 
     "Strategic Matrix", 
     "Product Metrics", 
     "Revenue Charts", 
@@ -337,25 +344,30 @@ with tab2:
         ai_provider = st.selectbox("Select Provider", ["OpenAI (GPT-4o)", "DeepSeek (R1)"])
     with col_key:
         api_key_input = st.text_input("Enter API Key", type="password")
-    st.caption("DeepSeek is significantly cheaper. OpenAI is the industry standard.")
+    
     user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="We believed that...", height=100, key="hyp_ai")
+    
     if st.button("Generate AI Analysis"):
+        # Calculate Quick Confidence Interval for Context
+        ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
+        diff_ci_low = (ci_low - rate_c) * 100 # Approx difference
+        diff_ci_high = (ci_high - rate_c) * 100
+
         metrics_payload = {
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
+            "ci_low": diff_ci_low, "ci_high": diff_ci_high
         }
+        
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
         with st.spinner(f"Connecting to {provider_name}..."):
             st.markdown("---")
             st.markdown(get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name))
 
-# --- TAB 3: STOPPING & SEQUENTIAL (RESTORED HEADER) ---
+# --- TAB 3: STOPPING & SEQUENTIAL ---
 with tab3:
     st.markdown("### 🛑 Stopping Rules & Sequential Testing")
-    
-    # 1. Bayesian
-    st.markdown("#### 1. Bayesian Expected Loss (Risk)")
     prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
         conv_control+1, users_control-conv_control+1, 
         conv_variation+1, users_variation-conv_variation+1
@@ -366,14 +378,9 @@ with tab3:
     c3.metric("Risk (Stay)", f"{loss_c*100:.5f}%")
     
     st.markdown("---")
-    
-    # 2. Sequential (Restored Header!)
     st.markdown("#### 2. Sequential Testing (Peeking Penalty)")
-    st.write("If you check results frequently, you must adjust your strictness to avoid false positives.")
-    
     peeks = st.number_input("How many times have you checked the results?", min_value=1, value=1)
     adjusted_alpha = 0.05 * np.log(1 + (np.e - 1) / peeks)
-    
     st.write(f"Adjusted significance threshold: **{adjusted_alpha:.4f}**")
     if p_value_z < adjusted_alpha:
         st.success(f"✅ **SIGNIFICANT** (p={p_value_z:.4f})")
