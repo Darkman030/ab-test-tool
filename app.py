@@ -44,22 +44,18 @@ def calculate_uplift(ctrl, var):
     return ((var - ctrl) / ctrl) * 100
 
 def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
-    """
-    Sends data to OpenAI or DeepSeek for analysis.
-    """
     if not api_key:
         return "⚠️ Please enter a valid API Key to generate this analysis."
     
     # CONFIGURE PROVIDER
     if provider == "DeepSeek":
         base_url = "https://api.deepseek.com"
-        model_name = "deepseek-reasoner" # Uses the R1 Reasoning model
+        model_name = "deepseek-reasoner"
     else:
         base_url = "https://api.openai.com/v1"
         model_name = "gpt-4o"
 
     try:
-        # We use the standard OpenAI client, but change the 'base_url' if using DeepSeek
         client = openai.OpenAI(api_key=api_key, base_url=base_url)
         
         prompt = f"""
@@ -94,12 +90,9 @@ def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
         return f"Error connecting to AI: {str(e)}"
 
 def generate_smart_analysis(hypothesis, metrics):
-    """
-    Generates a rule-based natural language analysis (Free).
-    """
     report = []
     
-    # 1. Executive Summary & SRM
+    # 1. Executive Summary
     report.append("### 📄 Executive Summary")
     if metrics['p_srm'] < 0.01:
         report.append(f"❌ **CRITICAL FAILURE:** Sample Ratio Mismatch (SRM) detected (p={metrics['p_srm']:.4f}). Results likely invalid.")
@@ -310,9 +303,9 @@ st.markdown("---")
 # --- TABS ---
 st.header("Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
-    "🧠 Smart Analysis", # FREE
-    "🤖 AI Analysis (DeepSeek/GPT)", # API
-    "🛑 Stopping Rules", 
+    "🧠 Smart Analysis", 
+    "🤖 AI Analysis", 
+    "🛑 Stopping & Sequential", # RENAMED
     "Strategic Matrix", 
     "Product Metrics", 
     "Revenue Charts", 
@@ -322,7 +315,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "Box Plot"
 ])
 
-# --- TAB 1: SMART ANALYSIS (Logic Powered) ---
+# --- TAB 1: SMART ANALYSIS ---
 with tab1:
     st.markdown("### 🧠 Smart Executive Summary (Free)")
     st.info("Generated instantly using statistical rules (No API Key required).")
@@ -336,36 +329,33 @@ with tab1:
         st.markdown("---")
         st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload))
 
-# --- TAB 2: AI ANALYSIS (DeepSeek/OpenAI) ---
+# --- TAB 2: AI ANALYSIS ---
 with tab2:
     st.markdown("### 🤖 AI-Powered Analysis")
-    
     col_prov, col_key = st.columns(2)
     with col_prov:
         ai_provider = st.selectbox("Select Provider", ["OpenAI (GPT-4o)", "DeepSeek (R1)"])
     with col_key:
         api_key_input = st.text_input("Enter API Key", type="password")
-    
     st.caption("DeepSeek is significantly cheaper. OpenAI is the industry standard.")
-    
     user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="We believed that...", height=100, key="hyp_ai")
-    
     if st.button("Generate AI Analysis"):
         metrics_payload = {
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
         }
-        # Parse Provider Name for function
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
-        
         with st.spinner(f"Connecting to {provider_name}..."):
             st.markdown("---")
             st.markdown(get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name))
 
-# --- TAB 3: STOPPING RULES ---
+# --- TAB 3: STOPPING & SEQUENTIAL (RESTORED HEADER) ---
 with tab3:
-    st.markdown("### 🛑 Stopping Rules & Risk")
+    st.markdown("### 🛑 Stopping Rules & Sequential Testing")
+    
+    # 1. Bayesian
+    st.markdown("#### 1. Bayesian Expected Loss (Risk)")
     prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
         conv_control+1, users_control-conv_control+1, 
         conv_variation+1, users_variation-conv_variation+1
@@ -376,8 +366,14 @@ with tab3:
     c3.metric("Risk (Stay)", f"{loss_c*100:.5f}%")
     
     st.markdown("---")
+    
+    # 2. Sequential (Restored Header!)
+    st.markdown("#### 2. Sequential Testing (Peeking Penalty)")
+    st.write("If you check results frequently, you must adjust your strictness to avoid false positives.")
+    
     peeks = st.number_input("How many times have you checked the results?", min_value=1, value=1)
     adjusted_alpha = 0.05 * np.log(1 + (np.e - 1) / peeks)
+    
     st.write(f"Adjusted significance threshold: **{adjusted_alpha:.4f}**")
     if p_value_z < adjusted_alpha:
         st.success(f"✅ **SIGNIFICANT** (p={p_value_z:.4f})")
