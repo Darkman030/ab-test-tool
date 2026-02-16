@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer")
+st.title("A/B Test Analyzer")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
