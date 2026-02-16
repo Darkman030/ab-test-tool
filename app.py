@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("A/B Test Analyzer (Full Suite)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -60,9 +60,13 @@ def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
     ax.axvline(cr_c, color='gray', linestyle=':', alpha=0.5)
     ax.axhline(aov_c, color='gray', linestyle=':', alpha=0.5)
     
-    # Add Text Labels
-    ax.text(cr_c, aov_c + (aov_c*0.02), "Control", ha='center', fontweight='bold', color='blue')
-    ax.text(cr_v, aov_v + (aov_v*0.02), "Variation", ha='center', fontweight='bold', color='green')
+    # Add Text Labels (FIXED: Using offset points instead of data coordinates)
+    # This ensures the label is always exactly 10 pixels above the dot
+    ax.annotate("Control", (cr_c, aov_c), xytext=(0, 10), textcoords='offset points', 
+                ha='center', fontweight='bold', color='blue')
+    
+    ax.annotate("Variation", (cr_v, aov_v), xytext=(0, 10), textcoords='offset points', 
+                ha='center', fontweight='bold', color='green')
     
     ax.set_title("Strategic Matrix: Volume (CR) vs Value (AOV)")
     ax.set_xlabel("Conversion Rate (%)")
@@ -176,7 +180,7 @@ else:
     col4.info(f"CR Sig: NO (p={p_value_z:.4f})")
 
 st.subheader("2. Product Velocity")
-# FIX: Use 5 columns here too, to match the grid above
+# 5 columns to match the grid above
 col1, col2, col3, col4, col5 = st.columns(5) 
 col1.metric("Avg Products / Order", f"{apo_v:.2f}", f"{uplift_apo:+.2f}%")
 col2.metric("Avg Products / User", f"{apu_v:.2f}", f"{uplift_apu:+.2f}%")
