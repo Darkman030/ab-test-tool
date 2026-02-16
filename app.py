@@ -7,19 +7,26 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("📊 Professional A/B Test Analyzer (Full Suite)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
+
+# Control
+st.sidebar.subheader("Control Group")
 users_control = st.sidebar.number_input("Control Users", min_value=1, value=5000)
 conv_control = st.sidebar.number_input("Control Conversions", min_value=0, value=500)
-rev_control = st.sidebar.number_input("Control Total Revenue ($)", min_value=0.0, value=25000.0)
+rev_control = st.sidebar.number_input("Control Revenue ($)", min_value=0.0, value=25000.0)
+prod_control = st.sidebar.number_input("Control Products Sold", min_value=0, value=750)
 
 st.sidebar.markdown("---")
 
+# Variation
+st.sidebar.subheader("Variation Group")
 users_variation = st.sidebar.number_input("Variation Users", min_value=1, value=5000)
 conv_variation = st.sidebar.number_input("Variation Conversions", min_value=0, value=600)
-rev_variation = st.sidebar.number_input("Variation Total Revenue ($)", min_value=0.0, value=33000.0)
+rev_variation = st.sidebar.number_input("Variation Revenue ($)", min_value=0.0, value=33000.0)
+prod_variation = st.sidebar.number_input("Variation Products Sold", min_value=0, value=1000)
 
 st.sidebar.markdown("---")
 days_run = st.sidebar.number_input("Days Test Ran", min_value=1, value=14)
@@ -32,15 +39,19 @@ def perform_srm_test(observed_users, expected_split=(0.5, 0.5)):
     chi2_stat, p_value = chi2_contingency([observed_users, expected_users])[:2]
     return chi2_stat, p_value
 
+def calculate_uplift(ctrl, var):
+    if ctrl == 0: return 0.0
+    return ((var - ctrl) / ctrl) * 100
+
 # --- PLOTTING FUNCTIONS ---
 
 def plot_metric_comparison(name, val_c, val_v, unit=""):
-    """Generic bar chart for any metric (AOV, RPV, CR)"""
+    """Generic bar chart for any metric"""
     fig, ax = plt.subplots(figsize=(8, 5))
     groups = ['Control', 'Variation']
     values = [val_c, val_v]
     
-    # Dynamic colors: Green for winner, Red for loser
+    # Dynamic colors
     if val_v >= val_c:
         colors = ['#1f77b4', '#2ca02c'] # Blue, Green
     else:
@@ -105,18 +116,25 @@ def plot_box_plot_analysis(sim_samples_c, sim_samples_v):
 # 1. Conversion Rate
 rate_c = conv_control / users_control
 rate_v = conv_variation / users_variation
-uplift_cr = ((rate_v - rate_c) / rate_c) * 100
+uplift_cr = calculate_uplift(rate_c, rate_v)
 
-# 2. Average Order Value (AOV) = Revenue / Conversions
-# Handle divide by zero safety
+# 2. Revenue Metrics (RPV, AOV)
 aov_c = rev_control / conv_control if conv_control > 0 else 0
 aov_v = rev_variation / conv_variation if conv_variation > 0 else 0
-uplift_aov = ((aov_v - aov_c) / aov_c) * 100 if aov_c > 0 else 0
+uplift_aov = calculate_uplift(aov_c, aov_v)
 
-# 3. Revenue Per Visitor (RPV) = Revenue / Users
 rpv_c = rev_control / users_control
 rpv_v = rev_variation / users_variation
-uplift_rpv = ((rpv_v - rpv_c) / rpv_c) * 100
+uplift_rpv = calculate_uplift(rpv_c, rpv_v)
+
+# 3. Product Metrics (Avg Products/Order, Avg Products/User)
+apo_c = prod_control / conv_control if conv_control > 0 else 0
+apo_v = prod_variation / conv_variation if conv_variation > 0 else 0
+uplift_apo = calculate_uplift(apo_c, apo_v)
+
+apu_c = prod_control / users_control
+apu_v = prod_variation / users_variation
+uplift_apu = calculate_uplift(apu_c, apu_v)
 
 # --- STATISTICAL TESTS ---
 
@@ -126,74 +144,51 @@ z_stat, p_value_z = proportions_ztest([conv_control, conv_variation], [users_con
 # SRM Test
 chi2_val, p_value_srm = perform_srm_test([users_control, users_variation])
 
-# T-Test for RPV (Approximate using aggregated data)
-# We assume standard deviation is roughly AOV (common approximation when raw data is missing)
-# This is a "rough estimation" since we don't have row-level data.
-std_dev_c = aov_c * 1.5 # Heuristic: Ecommerce std dev is often 1.5x - 2x the AOV
-std_dev_v = aov_v * 1.5
-t_stat_rpv, p_value_rpv = ttest_ind_from_stats(
-    mean1=rpv_c, std1=std_dev_c, nobs1=users_control,
-    mean2=rpv_v, std2=std_dev_v, nobs2=users_variation,
-    equal_var=False
-)
-
 # --- DASHBOARD ---
 
 st.header("Results Summary")
 
-# Top Row: Conversion Rate
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Control CR", f"{rate_c*100:.2f}%")
-col2.metric("Variation CR", f"{rate_v*100:.2f}%")
-col3.metric("CR Uplift", f"{uplift_cr:+.2f}%", delta_color="normal")
+# Metric Group 1: The Main KPIs (CR, RPV, AOV)
+st.subheader("1. Primary KPIs")
+col1, col2, col3, col4, col5 = st.columns(5)
+col1.metric("Conversion Rate", f"{rate_v*100:.2f}%", f"{uplift_cr:+.2f}%")
+col2.metric("RPV (Rev/Visitor)", f"${rpv_v:.2f}", f"{uplift_rpv:+.2f}%")
+col3.metric("AOV (Avg Order)", f"${aov_v:.2f}", f"{uplift_aov:+.2f}%")
 if p_value_z <= 0.05:
-    col4.success(f"Significant (p={p_value_z:.4f})")
+    col4.success(f"CR Sig: YES (p={p_value_z:.4f})")
 else:
-    col4.info(f"Not Sig (p={p_value_z:.4f})")
+    col4.info(f"CR Sig: NO (p={p_value_z:.4f})")
 
-# Middle Row: RPV (The most important business metric)
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Control RPV", f"${rpv_c:.2f}")
-col2.metric("Variation RPV", f"${rpv_v:.2f}")
-col3.metric("RPV Uplift", f"{uplift_rpv:+.2f}%", delta_color="normal")
-if p_value_rpv <= 0.05:
-    col4.success(f"Significant (p={p_value_rpv:.4f})*")
-else:
-    col4.info(f"Not Sig (p={p_value_rpv:.4f})*")
-st.caption("*RPV significance is estimated using aggregated data t-test.")
-
-# Bottom Row: AOV
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Control AOV", f"${aov_c:.2f}")
-col2.metric("Variation AOV", f"${aov_v:.2f}")
-col3.metric("AOV Uplift", f"{uplift_aov:+.2f}%", delta_color="normal")
-col4.write("") # No stat test for AOV alone usually needed
+# Metric Group 2: Product Velocity
+st.subheader("2. Product Velocity")
+col1, col2, col3 = st.columns(3)
+col1.metric("Avg Products / Order", f"{apo_v:.2f}", f"{uplift_apo:+.2f}%")
+col2.metric("Avg Products / User", f"{apu_v:.2f}", f"{uplift_apu:+.2f}%")
+col3.caption("Higher 'Products / Order' means users are building bigger baskets.")
 
 st.markdown("---")
 
 # --- INTERPRETATION SECTIONS ---
 
-# 1. Primary Metric (Conversion Rate) Logic
-st.subheader("1. Conversion Rate Analysis")
-if p_value_z <= 0.05:
-    if uplift_cr > 0:
-        st.success(f"✅ **WINNER:** Variation CR is significantly higher.")
-    else:
-        st.error(f"❌ **LOSER:** Variation CR is significantly lower.")
-else:
-    st.info(f"⚠️ **INCONCLUSIVE:** No significant difference in Conversion Rate.")
-
-# 2. Business Metric (Revenue) Logic
-st.subheader("2. Revenue Impact Analysis")
+st.subheader("3. Executive Interpretation")
 rev_diff = rev_variation - (rev_control * (users_variation/users_control)) # Normalized revenue diff
-if uplift_rpv > 0:
-    st.write(f"The Variation is generating **${rpv_v - rpv_c:.2f} more per visitor**.")
-    st.write(f"If you rolled this out to 100,000 users, you would make an extra **${(rpv_v - rpv_c)*100000:,.0f}**.")
-else:
-    st.write(f"The Variation is generating **${rpv_c - rpv_v:.2f} less per visitor**.")
 
-# 3. Safety Checks
-st.subheader("3. Health Checks")
+# Logic for mixed results
+if uplift_cr > 0 and uplift_aov < 0:
+    st.warning("⚠️ **Trade-off Detected:** Variation drives MORE orders, but SMALLER baskets.")
+elif uplift_cr < 0 and uplift_aov > 0:
+    st.warning("⚠️ **Trade-off Detected:** Variation drives FEWER orders, but BIGGER baskets.")
+else:
+    st.success("✅ **Clean Result:** Trends are consistent.")
+
+if uplift_rpv > 0:
+    st.write(f"**Financial Impact:** The Variation generates **${rpv_v - rpv_c:.2f} more per visitor**.")
+    st.write(f"Projected impact per 100k users: **+${(rpv_v - rpv_c)*100000:,.0f}**")
+else:
+    st.write(f"**Financial Impact:** The Variation generates **${rpv_c - rpv_v:.2f} less per visitor**.")
+
+# Health Checks
+st.subheader("4. Health Checks")
 col1, col2 = st.columns(2)
 with col1:
     if p_value_srm < 0.01:
@@ -211,25 +206,32 @@ st.markdown("---")
 
 # --- VISUALIZATIONS ---
 st.header("Visualizations")
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Revenue Charts", "CR Comparison", "Bayesian", "Bootstrap", "Box Plot"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Product Metrics", "Revenue Charts", "CR Comparison", "Bayesian", "Bootstrap", "Box Plot"])
 
 with tab1:
+    col1, col2 = st.columns(2)
+    with col1:
+        plot_metric_comparison("Avg Products / Order", apo_c, apo_v, unit="")
+    with col2:
+        plot_metric_comparison("Avg Products / User", apu_c, apu_v, unit="")
+
+with tab2:
     col1, col2 = st.columns(2)
     with col1:
         plot_metric_comparison("Revenue Per Visitor (RPV)", rpv_c, rpv_v, unit="$")
     with col2:
         plot_metric_comparison("Average Order Value (AOV)", aov_c, aov_v, unit="$")
 
-with tab2:
+with tab3:
     plot_metric_comparison("Conversion Rate", rate_c*100, rate_v*100, unit="")
 
-with tab3:
+with tab4:
     plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, 
                        conv_variation+1, users_variation-conv_variation+1)
 
-with tab4:
+with tab5:
     samples_c, samples_v, ci_low, ci_high = run_bootstrap_and_plot(users_control, conv_control, users_variation, conv_variation)
     st.write(f"**95% Confidence Interval:** {ci_low:.2f}% to {ci_high:.2f}%")
 
-with tab5:
+with tab6:
     plot_box_plot_analysis(samples_c, samples_v)
