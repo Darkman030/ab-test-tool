@@ -25,13 +25,18 @@ def perform_srm_test(observed_users, expected_split=(0.5, 0.5)):
     chi2_stat, p_value = chi2_contingency([observed_users, expected_users])[:2]
     return chi2_stat, p_value
 
-# --- PLOTTING FUNCTIONS (Adapted for Streamlit) ---
+# --- PLOTTING FUNCTIONS ---
 
 def plot_cumulative_conversion_comparison(control_rate, variation_rate):
     fig, ax = plt.subplots(figsize=(8, 5))
     groups = ['Control', 'Variation']
     rates = [control_rate, variation_rate]
-    colors = ['#1f77b4', '#2ca02c']
+    # Dynamic colors: Green for winner, Red for loser
+    if variation_rate >= control_rate:
+        colors = ['#1f77b4', '#2ca02c'] # Control Blue, Variation Green
+    else:
+        colors = ['#1f77b4', '#d62728'] # Control Blue, Variation Red
+        
     ax.bar(groups, rates, color=colors, alpha=0.8)
     ax.set_title('Conversion Rate Comparison')
     ax.set_ylabel('Conversion Rate (%)')
@@ -122,20 +127,29 @@ col3.metric("Relative Uplift", f"{uplift:+.2f}%", delta_color="normal")
 
 st.markdown("---")
 
-# 1. P-Value
+# 1. P-Value (SMART LOGIC UPDATE)
 st.subheader("1. Statistical Significance")
+
 if p_value_z <= 0.05:
-    st.success(f"✅ **SIGNIFICANT (p={p_value_z:.4f})**")
-    st.write(f"There is only a {p_value_z*100:.2f}% chance this happened by luck.")
+    if uplift > 0:
+        st.success(f"✅ **SIGNIFICANT WIN (p={p_value_z:.4f})**")
+        st.write(f"The Variation is performing significantly **BETTER** than Control.")
+        st.write(f"There is only a {p_value_z*100:.2f}% chance this happened by luck.")
+    else:
+        st.error(f"❌ **SIGNIFICANT LOSS (p={p_value_z:.4f})**")
+        st.write(f"The Variation is performing significantly **WORSE** than Control.")
+        st.write(f"There is only a {p_value_z*100:.2f}% chance this happened by luck.")
 else:
-    st.warning(f"⚠️ **NOT SIGNIFICANT (p={p_value_z:.4f})**")
+    st.info(f"⚠️ **NOT SIGNIFICANT (p={p_value_z:.4f})**")
     st.write(f"There is a {p_value_z*100:.2f}% chance this difference is just random noise.")
+    st.write("We cannot confidently say there is a real difference yet.")
 
 # 2. SRM Check
 st.subheader("2. Sample Ratio Mismatch (SRM) Check")
 if p_value_srm < 0.01:
     st.error(f"❌ **CRITICAL WARNING: SRM DETECTED (p={p_value_srm:.4f})**")
-    st.write("The traffic split is NOT balanced. Do not trust these results.")
+    st.write("The traffic split is NOT balanced. **Do not trust these results.** Check for bugs in your redirect or tracking.")
+    st.write(f"Observed split: {users_control} vs {users_variation}")
 else:
     st.success(f"✅ **PASS (p={p_value_srm:.4f})**")
     st.write("Traffic split looks healthy.")
@@ -175,7 +189,7 @@ with tab4:
     elif ci_high < 0:
         st.error("❌ **Negative Outcome:** The entire interval is below 0. Variation loses.")
     else:
-        st.warning("⚠️ **Inconclusive:** The interval crosses 0.")
+        st.info("⚠️ **Inconclusive:** The interval crosses 0.")
 
 with tab5:
     plot_box_plot_analysis(samples_c, samples_v)
