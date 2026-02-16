@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer v1.1")
+st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -43,6 +43,14 @@ def calculate_uplift(ctrl, var):
     if ctrl == 0: return 0.0
     return ((var - ctrl) / ctrl) * 100
 
+def calculate_bayesian_risk(alpha_c, beta_c, alpha_v, beta_v, num_samples=50000):
+    samples_c = np.random.beta(alpha_c, beta_c, num_samples)
+    samples_v = np.random.beta(alpha_v, beta_v, num_samples)
+    prob_v_wins = np.mean(samples_v > samples_c)
+    loss_v = np.mean(np.maximum(samples_c - samples_v, 0))
+    loss_c = np.mean(np.maximum(samples_v - samples_c, 0))
+    return prob_v_wins, loss_v, loss_c
+
 def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
     if not api_key:
         return "⚠️ Please enter a valid API Key to generate this analysis."
@@ -75,19 +83,27 @@ def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
         - RPV: ${metrics_dict['rpv_c']:.2f} vs ${metrics_dict['rpv_v']:.2f} (Uplift: {metrics_dict['uplift_rpv']:.2f}%)
         - 95% Confidence Interval (Absolute Diff): {metrics_dict['ci_low']:.2f}% to {metrics_dict['ci_high']:.2f}%
         
+        **Bayesian Risk Analysis:**
+        - Probability Variation is Best: {metrics_dict['prob_v_wins']:.1f}%
+        - Risk of Switching (Expected Loss): {metrics_dict['loss_v']:.5f}% (Lower is better)
+        - Risk of Staying (Expected Loss): {metrics_dict['loss_c']:.5f}%
+        
         **Task:**
         1. Executive Summary (Win/Loss/Inconclusive).
         2. Trade-off Analysis (Volume vs Value).
         3. Final Recommendation (Roll out/Roll back).
         
-        **4. Visual Analysis (Graph-by-Graph):**
+        **4. Bayesian Risk Assessment:**
+        Interpret the Bayesian numbers. Explain if the "Probability to be Best" ({metrics_dict['prob_v_wins']:.1f}%) is high enough to act. Explain the "Risk of Switching" ({metrics_dict['loss_v']:.5f}%) in plain English (e.g., "The cost of being wrong is negligible/high").
+        
+        **5. Visual Analysis (Graph-by-Graph):**
         Please write 1-2 paragraphs interpreting EACH of the following graphs based on the data above:
         - **Strategic Matrix:** Interpret the position of the dots (CR vs AOV trade-off).
         - **Product Metrics:** Analyze the "Avg Products per Order" and "Avg Products per User".
         - **Revenue Charts:** Compare RPV and AOV bars.
         - **CR Comparison:** Interpret the simple bar chart difference.
-        - **Bayesian:** Describe the probability density curves (overlap means uncertainty, separation means confidence).
-        - **Bootstrap:** Interpret the histogram of differences using the CI ({metrics_dict['ci_low']:.2f}% to {metrics_dict['ci_high']:.2f}%).
+        - **Bayesian:** Describe the probability density curves.
+        - **Bootstrap:** Interpret the histogram of differences using the CI.
         - **Box Plot:** Interpret the spread/variability of the conversion rates.
         """
 
@@ -151,10 +167,8 @@ def generate_smart_analysis(hypothesis, metrics):
         report.append(f"**Financial Outlook: NEGATIVE.**")
         report.append(f"Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
         
-    # 5. Visual Insights (NEW SECTION)
+    # 5. Visual Insights
     report.append("### 📈 Visual Insights (Graph Interpretation)")
-    
-    # Strategic Matrix Logic
     report.append("**1. Strategic Matrix:**")
     if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
         report.append("The Variation dot is positioned to the **bottom-right** of the Control. This confirms the trade-off: you are gaining Volume (higher CR) but losing Value (lower AOV).")
@@ -165,7 +179,6 @@ def generate_smart_analysis(hypothesis, metrics):
     else:
         report.append("The Variation dot is in the **bottom-left (Red Zone)**. Both metrics are underperforming.")
 
-    # Bootstrap/CI Logic
     report.append("\n**2. Bootstrap & Confidence Interval:**")
     if metrics['ci_low'] > 0:
         report.append(f"The histogram is entirely to the right of 0. The 95% Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) is positive, confirming a **Statistical Win**.")
@@ -174,22 +187,7 @@ def generate_smart_analysis(hypothesis, metrics):
     else:
         report.append(f"The histogram is centered near 0 and the Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) **crosses zero**. This explains why the test is Inconclusive—there is still a chance the true difference is 0.")
 
-    # Product Velocity Logic
-    report.append("\n**3. Product Velocity:**")
-    if metrics.get('uplift_apo', 0) > 0:
-        report.append(f"Users in the Variation are buying **{metrics['uplift_apo']:.2f}% more items per order**. The basket size is increasing.")
-    else:
-        report.append(f"Users in the Variation are buying **{abs(metrics['uplift_apo']):.2f}% fewer items per order**. The basket size is shrinking.")
-
     return "\n\n".join(report)
-
-def calculate_bayesian_risk(alpha_c, beta_c, alpha_v, beta_v, num_samples=50000):
-    samples_c = np.random.beta(alpha_c, beta_c, num_samples)
-    samples_v = np.random.beta(alpha_v, beta_v, num_samples)
-    prob_v_wins = np.mean(samples_v > samples_c)
-    loss_v = np.mean(np.maximum(samples_c - samples_v, 0))
-    loss_c = np.mean(np.maximum(samples_v - samples_c, 0))
-    return prob_v_wins, loss_v, loss_c
 
 # --- PLOTTING FUNCTIONS ---
 
@@ -258,7 +256,7 @@ def plot_box_plot_analysis(sim_samples_c, sim_samples_v):
                     boxprops=dict(facecolor="skyblue", color="blue"),
                     whiskerprops=dict(color="blue"),
                     capprops=dict(color="blue"),
-                    showfliers=False) # Hiding outliers for cleaner view
+                    showfliers=False) 
     ax.set_xticklabels(['Control Group', 'Variation Group'])
     ax.set_ylabel('Conversion Rate (%)')
     ax.set_title('Box Plot Analysis')
@@ -363,7 +361,6 @@ with tab1:
     st.info("Generated instantly using statistical rules (No API Key required).")
     user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Analysis"):
-        # Calc CI for smart analysis
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
         diff_ci_low = (ci_low - rate_c) * 100
         diff_ci_high = (ci_high - rate_c) * 100
@@ -393,15 +390,26 @@ with tab2:
     user_hypothesis_ai = st.text_area("Hypothesis (AI):", placeholder="We believed that...", height=100, key="hyp_ai")
     
     if st.button("Generate AI Analysis"):
+        # 1. Calc CI for AI
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
         diff_ci_low = (ci_low - rate_c) * 100
         diff_ci_high = (ci_high - rate_c) * 100
 
+        # 2. Calc Bayesian Risk for AI
+        prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
+            conv_control+1, users_control-conv_control+1, 
+            conv_variation+1, users_variation-conv_variation+1
+        )
+
+        # 3. Pack Payload
         metrics_payload = {
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
-            "ci_low": diff_ci_low, "ci_high": diff_ci_high
+            "ci_low": diff_ci_low, "ci_high": diff_ci_high,
+            "prob_v_wins": prob_v_wins * 100, # pass as %
+            "loss_v": loss_v * 100, # pass as %
+            "loss_c": loss_c * 100  # pass as %
         }
         
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
