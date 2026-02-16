@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("📊 Professional A/B Test Analyzer (Smart Logic Edition)")
+st.title("A/B Test Analyzer")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -270,7 +270,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 # --- TAB 1: SMART ANALYSIS (Free) ---
 with tab1:
     st.markdown("### 🧠 Smart Executive Summary")
-    st.info("This report is generated automatically based on statistical rules (No API Key required).")
+    st.info("This report is generated automatically based on statistical rules.")
     
     user_hypothesis = st.text_area("What was your Hypothesis?", 
                                  placeholder="e.g., We believed that moving the CTA above the fold would increase conversion rate...",
