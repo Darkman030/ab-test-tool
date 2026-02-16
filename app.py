@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer v0.9")
+st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -146,9 +146,40 @@ def generate_smart_analysis(hypothesis, metrics):
         financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
         report.append(f"**Financial Outlook: POSITIVE.**")
         report.append(f"Variation generates **${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor**.")
+        report.append(f"Projected impact per 100k users: **+${financial_impact:,.0f}**.")
     else:
         report.append(f"**Financial Outlook: NEGATIVE.**")
         report.append(f"Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
+        
+    # 5. Visual Insights (NEW SECTION)
+    report.append("### 📈 Visual Insights (Graph Interpretation)")
+    
+    # Strategic Matrix Logic
+    report.append("**1. Strategic Matrix:**")
+    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
+        report.append("The Variation dot is positioned to the **bottom-right** of the Control. This confirms the trade-off: you are gaining Volume (higher CR) but losing Value (lower AOV).")
+    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
+        report.append("The Variation dot is positioned to the **top-left**. You are sacrificing Volume for higher Value (The 'Luxury Effect').")
+    elif metrics['uplift_cr'] > 0 and metrics['uplift_aov'] > 0:
+        report.append("The Variation dot is in the **top-right (Green Zone)**. This is a Win-Win scenario.")
+    else:
+        report.append("The Variation dot is in the **bottom-left (Red Zone)**. Both metrics are underperforming.")
+
+    # Bootstrap/CI Logic
+    report.append("\n**2. Bootstrap & Confidence Interval:**")
+    if metrics['ci_low'] > 0:
+        report.append(f"The histogram is entirely to the right of 0. The 95% Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) is positive, confirming a **Statistical Win**.")
+    elif metrics['ci_high'] < 0:
+        report.append(f"The histogram is entirely to the left of 0. The 95% Confidence Interval is negative, confirming a **Statistical Loss**.")
+    else:
+        report.append(f"The histogram is centered near 0 and the Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) **crosses zero**. This explains why the test is Inconclusive—there is still a chance the true difference is 0.")
+
+    # Product Velocity Logic
+    report.append("\n**3. Product Velocity:**")
+    if metrics.get('uplift_apo', 0) > 0:
+        report.append(f"Users in the Variation are buying **{metrics['uplift_apo']:.2f}% more items per order**. The basket size is increasing.")
+    else:
+        report.append(f"Users in the Variation are buying **{abs(metrics['uplift_apo']):.2f}% fewer items per order**. The basket size is shrinking.")
 
     return "\n\n".join(report)
 
@@ -226,7 +257,8 @@ def plot_box_plot_analysis(sim_samples_c, sim_samples_v):
                     medianprops=dict(color="blue", linewidth=1.5),
                     boxprops=dict(facecolor="skyblue", color="blue"),
                     whiskerprops=dict(color="blue"),
-                    capprops=dict(color="blue"))
+                    capprops=dict(color="blue"),
+                    showfliers=False) # Hiding outliers for cleaner view
     ax.set_xticklabels(['Control Group', 'Variation Group'])
     ax.set_ylabel('Conversion Rate (%)')
     ax.set_title('Box Plot Analysis')
@@ -331,10 +363,16 @@ with tab1:
     st.info("Generated instantly using statistical rules (No API Key required).")
     user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Analysis"):
+        # Calc CI for smart analysis
+        ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
+        diff_ci_low = (ci_low - rate_c) * 100
+        diff_ci_high = (ci_high - rate_c) * 100
+
         metrics_payload = {
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv
+            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
+            "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": uplift_apo # added uplift_apo
         }
         smart_result = generate_smart_analysis(user_hypothesis, metrics_payload)
         st.markdown("---")
