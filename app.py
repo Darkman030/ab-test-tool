@@ -55,21 +55,20 @@ def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
     ax.scatter(cr_c, aov_c, color='blue', s=200, label='Control', zorder=5)
     ax.scatter(cr_v, aov_v, color='green', s=200, label='Variation', zorder=5)
     
+    # Draw Arrow
+    ax.annotate("", xy=(cr_v, aov_v), xytext=(cr_c, aov_c),
+                arrowprops=dict(arrowstyle="->", color='gray', lw=1.5, ls='--'))
+
     # Draw Crosshairs based on Control
-    ax.axvline(cr_c, color='gray', linestyle='--', alpha=0.5)
-    ax.axhline(aov_c, color='gray', linestyle='--', alpha=0.5)
+    ax.axvline(cr_c, color='gray', linestyle=':', alpha=0.5)
+    ax.axhline(aov_c, color='gray', linestyle=':', alpha=0.5)
     
     # Add Text Labels
-    ax.text(cr_c, aov_c + (aov_c*0.02), "Control (Baseline)", ha='center', fontweight='bold', color='blue')
+    ax.text(cr_c, aov_c + (aov_c*0.02), "Control", ha='center', fontweight='bold', color='blue')
     ax.text(cr_v, aov_v + (aov_v*0.02), "Variation", ha='center', fontweight='bold', color='green')
     
-    # Add Quadrant Labels
-    # We want these labels in the corners relative to the Control center point
-    x_min, x_max = ax.get_xlim()
-    y_min, y_max = ax.get_ylim()
-    
     # Set Axis Labels
-    ax.set_title("Strategic Matrix: CR vs AOV Trade-off")
+    ax.set_title("Strategic Matrix: Volume (CR) vs Value (AOV)")
     ax.set_xlabel("Conversion Rate (%)")
     ax.set_ylabel("Average Order Value ($)")
     ax.grid(True, alpha=0.3)
@@ -237,6 +236,22 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
 with tab1:
     st.write("This chart shows the trade-off between **Quantity** (CR) and **Quality** (AOV).")
     plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
+    
+    st.markdown("### 💡 Strategic Verdict")
+    if uplift_cr > 0 and uplift_aov < 0:
+        if uplift_rpv > 0:
+            st.success(f"**GOOD TRADE-OFF:** You sacrificed Price (-{abs(uplift_aov):.1f}%) but gained enough Volume (+{uplift_cr:.1f}%) to come out ahead on RPV (+{uplift_rpv:.1f}%).")
+        else:
+            st.error(f"**BAD TRADE-OFF:** You gained Volume (+{uplift_cr:.1f}%) but the Price drop (-{abs(uplift_aov):.1f}%) was too severe. You are losing money overall (RPV {uplift_rpv:.1f}%).")
+    elif uplift_cr < 0 and uplift_aov > 0:
+        if uplift_rpv > 0:
+            st.success(f"**GOOD TRADE-OFF:** You sacrificed Volume (-{abs(uplift_cr):.1f}%) but the Price increase (+{uplift_aov:.1f}%) made up for it. You are earning more per user.")
+        else:
+            st.error(f"**BAD TRADE-OFF:** You raised Price (+{uplift_aov:.1f}%) but it scared off too many customers (-{abs(uplift_cr):.1f}%). You are losing money overall.")
+    elif uplift_rpv > 0:
+         st.success(f"**WIN-WIN:** Both metrics are moving in the right direction (or neutral). Total RPV is up {uplift_rpv:.2f}%.")
+    else:
+         st.error(f"**LOSE-LOSE:** Total RPV is down {uplift_rpv:.2f}%. Strategy is not working.")
 
 with tab2:
     col1, col2 = st.columns(2)
