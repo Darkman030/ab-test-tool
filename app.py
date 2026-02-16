@@ -7,7 +7,7 @@ from statsmodels.stats.power import NormalIndPower
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer")
+st.title("📊 Professional A/B Test Analyzer (Full Suite)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -45,18 +45,44 @@ def calculate_uplift(ctrl, var):
 
 # --- PLOTTING FUNCTIONS ---
 
+def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
+    """
+    Scatter plot to show the trade-off between CR and AOV.
+    """
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Plot Points
+    ax.scatter(cr_c, aov_c, color='blue', s=200, label='Control', zorder=5)
+    ax.scatter(cr_v, aov_v, color='green', s=200, label='Variation', zorder=5)
+    
+    # Draw Crosshairs based on Control
+    ax.axvline(cr_c, color='gray', linestyle='--', alpha=0.5)
+    ax.axhline(aov_c, color='gray', linestyle='--', alpha=0.5)
+    
+    # Add Text Labels
+    ax.text(cr_c, aov_c + (aov_c*0.02), "Control (Baseline)", ha='center', fontweight='bold', color='blue')
+    ax.text(cr_v, aov_v + (aov_v*0.02), "Variation", ha='center', fontweight='bold', color='green')
+    
+    # Add Quadrant Labels
+    # We want these labels in the corners relative to the Control center point
+    x_min, x_max = ax.get_xlim()
+    y_min, y_max = ax.get_ylim()
+    
+    # Set Axis Labels
+    ax.set_title("Strategic Matrix: CR vs AOV Trade-off")
+    ax.set_xlabel("Conversion Rate (%)")
+    ax.set_ylabel("Average Order Value ($)")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    
+    st.pyplot(fig)
+
 def plot_metric_comparison(name, val_c, val_v, unit=""):
-    """Generic bar chart for any metric"""
     fig, ax = plt.subplots(figsize=(8, 5))
     groups = ['Control', 'Variation']
     values = [val_c, val_v]
+    colors = ['#1f77b4', '#2ca02c'] if val_v >= val_c else ['#1f77b4', '#d62728']
     
-    # Dynamic colors
-    if val_v >= val_c:
-        colors = ['#1f77b4', '#2ca02c'] # Blue, Green
-    else:
-        colors = ['#1f77b4', '#d62728'] # Blue, Red
-        
     ax.bar(groups, values, color=colors, alpha=0.8)
     ax.set_title(f'{name} Comparison')
     ax.set_ylabel(name)
@@ -127,7 +153,7 @@ rpv_c = rev_control / users_control
 rpv_v = rev_variation / users_variation
 uplift_rpv = calculate_uplift(rpv_c, rpv_v)
 
-# 3. Product Metrics (Avg Products/Order, Avg Products/User)
+# 3. Product Metrics
 apo_c = prod_control / conv_control if conv_control > 0 else 0
 apo_v = prod_variation / conv_variation if conv_variation > 0 else 0
 uplift_apo = calculate_uplift(apo_c, apo_v)
@@ -138,17 +164,13 @@ uplift_apu = calculate_uplift(apu_c, apu_v)
 
 # --- STATISTICAL TESTS ---
 
-# Z-Test for Conversion Rate
 z_stat, p_value_z = proportions_ztest([conv_control, conv_variation], [users_control, users_variation])
-
-# SRM Test
 chi2_val, p_value_srm = perform_srm_test([users_control, users_variation])
 
 # --- DASHBOARD ---
 
 st.header("Results Summary")
 
-# Metric Group 1: The Main KPIs (CR, RPV, AOV)
 st.subheader("1. Primary KPIs")
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Conversion Rate", f"{rate_v*100:.2f}%", f"{uplift_cr:+.2f}%")
@@ -159,7 +181,6 @@ if p_value_z <= 0.05:
 else:
     col4.info(f"CR Sig: NO (p={p_value_z:.4f})")
 
-# Metric Group 2: Product Velocity
 st.subheader("2. Product Velocity")
 col1, col2, col3 = st.columns(3)
 col1.metric("Avg Products / Order", f"{apo_v:.2f}", f"{uplift_apo:+.2f}%")
@@ -168,12 +189,9 @@ col3.caption("Higher 'Products / Order' means users are building bigger baskets.
 
 st.markdown("---")
 
-# --- INTERPRETATION SECTIONS ---
-
 st.subheader("3. Executive Interpretation")
-rev_diff = rev_variation - (rev_control * (users_variation/users_control)) # Normalized revenue diff
+rev_diff = rev_variation - (rev_control * (users_variation/users_control))
 
-# Logic for mixed results
 if uplift_cr > 0 and uplift_aov < 0:
     st.warning("⚠️ **Trade-off Detected:** Variation drives MORE orders, but SMALLER baskets.")
 elif uplift_cr < 0 and uplift_aov > 0:
@@ -206,32 +224,44 @@ st.markdown("---")
 
 # --- VISUALIZATIONS ---
 st.header("Visualizations")
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Product Metrics", "Revenue Charts", "CR Comparison", "Bayesian", "Bootstrap", "Box Plot"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+    "Strategic Matrix (New!)", 
+    "Product Metrics", 
+    "Revenue Charts", 
+    "CR Comparison", 
+    "Bayesian", 
+    "Bootstrap", 
+    "Box Plot"
+])
 
 with tab1:
+    st.write("This chart shows the trade-off between **Quantity** (CR) and **Quality** (AOV).")
+    plot_strategic_matrix(rate_c*100, aov_c, rate_v*100, aov_v)
+
+with tab2:
     col1, col2 = st.columns(2)
     with col1:
         plot_metric_comparison("Avg Products / Order", apo_c, apo_v, unit="")
     with col2:
         plot_metric_comparison("Avg Products / User", apu_c, apu_v, unit="")
 
-with tab2:
+with tab3:
     col1, col2 = st.columns(2)
     with col1:
         plot_metric_comparison("Revenue Per Visitor (RPV)", rpv_c, rpv_v, unit="$")
     with col2:
         plot_metric_comparison("Average Order Value (AOV)", aov_c, aov_v, unit="$")
 
-with tab3:
+with tab4:
     plot_metric_comparison("Conversion Rate", rate_c*100, rate_v*100, unit="")
 
-with tab4:
+with tab5:
     plot_bayesian_pdfs(conv_control+1, users_control-conv_control+1, 
                        conv_variation+1, users_variation-conv_variation+1)
 
-with tab5:
+with tab6:
     samples_c, samples_v, ci_low, ci_high = run_bootstrap_and_plot(users_control, conv_control, users_variation, conv_variation)
     st.write(f"**95% Confidence Interval:** {ci_low:.2f}% to {ci_high:.2f}%")
 
-with tab6:
+with tab7:
     plot_box_plot_analysis(samples_c, samples_v)
