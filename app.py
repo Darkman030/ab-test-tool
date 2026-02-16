@@ -7,7 +7,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wide")
-st.title("A/B Test Analyzer v1.0")
+st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 
 # --- SIDEBAR: USER INPUTS ---
 st.sidebar.header("Experiment Data")
@@ -372,7 +372,7 @@ with tab1:
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
-            "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": uplift_apo # added uplift_apo
+            "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": uplift_apo 
         }
         smart_result = generate_smart_analysis(user_hypothesis, metrics_payload)
         st.markdown("---")
