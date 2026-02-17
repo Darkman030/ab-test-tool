@@ -43,73 +43,72 @@ ICON_CALENDAR = """<svg viewBox="0 0 1024 1024" class="icon" style="width: 1.5em
 ICON_BAR_CHART = """<svg viewBox="0 0 1024 1024" class="icon" style="width: 1.5em; height: 1.5em; vertical-align: middle; margin-right: 10px;" version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#000000"><path d="M928.1 881v44H95.9V99h44v782z" fill="#ffffff"></path><path d="M352 435.7v403.4H204V435.7h148m22-22H182v447.4h192V413.7zM608 307.9v531.2H460V307.9h148m22-22H438v575.2h192V285.9z" fill="#ffffff"></path><path d="M866.1 177.3v663.9H714V177.3h152.1m20-20H694v703.9h192V157.3h0.1z" fill="#E73B37"></path></svg>"""
 ICON_BRAIN = """<svg viewBox="0 0 1024 1024" class="icon" style="width: 1.5em; height: 1.5em; vertical-align: middle; margin-right: 10px;" version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#000000"><path d="M512 301.2m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"></path><path d="M400.3 744.5c2.1-0.7 4.1-1.4 6.2-2-2 0.6-4.1 1.3-6.2 2z m0 0c2.1-0.7 4.1-1.4 6.2-2-2 0.6-4.1 1.3-6.2 2z" fill="#ffffff"></path><path d="M511.8 256.6c24.4 0 44.2 19.8 44.2 44.2S536.2 345 511.8 345s-44.2-19.8-44.2-44.2 19.9-44.2 44.2-44.2m0-20c-35.5 0-64.2 28.7-64.2 64.2s28.7 64.2 64.2 64.2 64.2-28.7 64.2-64.2-28.7-64.2-64.2-64.2z" fill="#E73B37"></path><path d="M730.7 529.5c0.4-8.7 0.6-17.4 0.6-26.2 0-179.6-86.1-339.1-219.3-439.5-133.1 100.4-219.2 259.9-219.2 439.5 0 8.8 0.2 17.5 0.6 26.1-56 56-90.6 133.3-90.6 218.7 0 61.7 18 119.1 49.1 167.3 30.3-49.8 74.7-90.1 127.7-115.3 39-18.6 82.7-29 128.8-29 48.3 0 93.9 11.4 134.3 31.7 52.5 26.3 96.3 67.7 125.6 118.4 33.4-49.4 52.9-108.9 52.9-173.1 0-85.4-34.6-162.6-90.5-218.6z" fill="#ffffff"></path><path d="M512 819.3c8.7 0 24.7 22.9 24.7 60.4s-16 60.4-24.7 60.4-24.7-22.9-24.7-60.4 16-60.4 24.7-60.4m0-20c-24.7 0-44.7 36-44.7 80.4 0 44.4 20 80.4 44.7 80.4s44.7-36 44.7-80.4c0-44.4-20-80.4-44.7-80.4z" fill="#E73B37"></path></svg>"""
 ICON_UPLOAD = """<svg viewBox="0 0 1024 1024" class="icon" style="width: 1.5em; height: 1.5em; vertical-align: middle; margin-right: 10px;" version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#000000"><path d="M220.5 245.4c-32.8 32.8-55.1 73.2-65.2 117.3h16.5c18.8-75.3 75.1-135.9 148-160.7v-16.9c-37.1 11.6-71 32-99.3 60.3z" fill="#E73B37"></path><path d="M959.9 540.8c0 113.6-92.1 205.8-205.7 205.9H590.9v-44h163.3c43.2 0 83.8-16.9 114.3-47.4 30.6-30.6 47.4-71.2 47.4-114.5 0-43.2-16.8-83.9-47.4-114.4S797.2 379 754 379c-11.5 0-22.8 1.2-33.8 3.5-15 3.2-29.4 8.4-42.8 15.7-1-15.4-3.3-30.7-6.8-45.6v-0.1c-3.6-15.6-8.6-30.8-14.9-45.7-14.4-33.9-34.9-64.4-61.1-90.6-26.2-26.2-56.6-46.7-90.6-61.1-35.1-14.8-72.4-22.4-110.9-22.4s-75.8 7.5-110.9 22.4c-33.9 14.3-64.4 34.9-90.6 61.1-26.2 26.2-46.7 56.7-61.1 90.6-14.9 35.1-22.4 72.4-22.4 110.9s7.5 75.8 22.4 110.9c14.3 33.9 34.9 64.4 61.1 90.6 26.2 26.2 56.7 46.7 90.6 61.1 35.1 14.8 72.4 22.4 110.9 22.4h39.7v44h-41C210.7 746 64.1 599 64.1 417.7c0-181.7 147.3-329 329-329 154.6 0 284.3 106.6 319.5 250.3v0.1c13.4-2.7 27.2-4.2 41.4-4.2 113.7 0.1 205.9 92.2 205.9 205.9z" fill="#ffffff"></path><path d="M692.9 636.1h-22.6L519.8 485.6v449.6h-16V485.8L353.4 636.1h-22.6l181-181z" fill="#E73B37"></path></svg>"""
+ICON_TROPHY = """<svg viewBox="0 0 1024 1024" class="icon" style="width: 1.5em; height: 1.5em; vertical-align: middle; margin-right: 10px;" version="1.1" xmlns="http://www.w3.org/2000/svg" fill="#000000"><path d="M828.5 180.1h-9.9v-54.7h23.5v-44H182v44h23v54.7h-9.5C123.2 180.1 64 239.2 64 311.5v0.1c0 72.3 59.2 131.5 131.5 131.5h9.6c0 1.3 0.1 2.5 0.1 3.7 0.5 17.7 2.7 35.4 6.2 52.5 17.8 85.7 71.8 160 148.3 204 4.8 2.8 9.8 5.4 14.7 7.9 15.3 7.7 31.2 14.1 47.4 19.2 3.4 1 6.8 2 10.2 2.9v165.2H250.4v44h511.9v-44H591.9V733.4c3.7-1 7.3-2.1 10.9-3.2 16.2-5.1 32.2-11.6 47.4-19.4 5-2.5 10-5.3 14.8-8.1 75.6-43.9 129.2-117.8 147-202.7 3.6-17.2 5.8-34.9 6.3-52.4 0.1-1.5 0.1-3 0.1-4.5h10c72.3 0 131.5-59.2 131.5-131.5v-0.1c0.1-72.3-59.1-131.4-131.4-131.4zM205 399.2h-9.5c-23.2 0-45.1-9.1-61.7-25.7s-25.7-38.5-25.7-61.7v-0.1c0-23.2 9.1-45.2 25.7-61.7 16.6-16.6 38.5-25.7 61.7-25.7h9.5v174.9z m370.9 499.4h-128V737.3c20.9 4.5 42.3 6.8 63.9 6.8 21.7 0 43.1-2.3 64.1-6.8v161.3z m198.7-461.4c0 2.9 0 5.9-0.2 8.9-0.5 15-2.3 30.1-5.4 44.9-15.3 72.7-61.2 136-126.1 173.7-4.1 2.4-8.4 4.7-12.7 6.9-13 6.6-26.7 12.2-40.6 16.6-25.2 7.9-51.4 11.9-77.9 11.9-26.2 0-52.2-3.9-77.1-11.6-13.9-4.3-27.5-9.8-40.6-16.4-4.2-2.1-8.5-4.4-12.6-6.8-65.4-37.8-111.7-101.5-126.9-174.8-3.1-14.7-4.9-29.8-5.3-45-0.1-2.7-0.1-5.5-0.1-8.2v-312h525.6v311.9zM916 311.7c0 23.2-9.1 45.2-25.7 61.7-16.6 16.6-38.5 25.7-61.7 25.7h-9.9v-175h9.9c23.2 0 45.1 9.1 61.7 25.7s25.7 38.5 25.7 61.7v0.2z" fill="#ffffff"></path><path d="M317.428 274.917l70.145-70.144 14.142 14.142-70.145 70.144zM316.055 351.98L456.13 211.904l14.142 14.142-140.076 140.076zM555.4 659.6l-4.8-19.4c0.3-0.1 26.5-6.8 55.4-23.5 37.8-21.9 62-49.7 72-82.7l19.1 5.8c-11.4 37.6-39.6 70.3-81.6 94.5-31.2 18-58.9 25-60.1 25.3z" fill="#E73B37"></path></svg>"""
 
-def render_header(svg_code, text, level=2, help_text=None):
+def render_sidebar_header(svg_code, text, help_text=None):
+    html = f"""<div style="display: flex; align-items: center; margin-bottom: 10px;">{svg_code}<h2 style="margin: 0; padding: 0; font-size: 1.5rem; margin-left: 5px;">{text}</h2></div>"""
+    st.sidebar.markdown(html, unsafe_allow_html=True, help=help_text)
+
+def render_main_header(svg_code, text, level=2):
     html = f"""<div style="display: flex; align-items: center; margin-bottom: 10px;">{svg_code}<h{level} style="margin: 0; padding: 0;">{text}</h{level}></div>"""
-    if help_text: st.sidebar.markdown(html, unsafe_allow_html=True, help=help_text)
-    else: st.markdown(html, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 # ==============================================
-# MAIN PAGE HEADER
+# UI - SIDEBAR
 # ==============================================
 st.title("Professional A/B Test Analyzer (Enterprise Edition)")
 
-# ==============================================
-# 0. SIDEBAR - STATE & SETTINGS
-# ==============================================
-st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_SETTINGS}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Settings</h2></div>""", unsafe_allow_html=True)
-
-# --- A. SAVE / LOAD STATE ---
-save_load_help = "Workflow Continuity: Use this to capture a snapshot of your experiment. Download data on Day 7, then re-upload on Day 14 to see how Probability and Risk evolve without re-typing baseline settings."
-st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_UPLOAD}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Save & Load</h2></div>""", unsafe_allow_html=True, help=save_load_help)
-
-with st.sidebar.expander("Open Controls", expanded=False):
-    st.caption("Snapshot Management")
-    current_state = {k: st.session_state[k] for k in ["users_c", "conv_c", "rev_c", "prod_c", "users_v", "conv_v", "rev_v", "prod_v", "days", "conf_level"]}
-    st.download_button(label="Download Inputs (.json)", data=json.dumps(current_state, indent=2), file_name="experiment_data.json", mime="application/json")
-    uploaded_file = st.file_uploader("Upload Snapshot", type=["json"])
-    if uploaded_file:
-        try:
-            data = json.load(uploaded_file)
-            for k, v in data.items(): st.session_state[k] = v
-            st.success("Loaded!")
-            st.rerun()
-        except: st.error("Invalid File")
-
+# Settings
+render_sidebar_header(ICON_SETTINGS, "Settings")
 confidence_level = st.sidebar.selectbox("Confidence Level", ["95%", "90%", "99%"], index=0, key="conf_level")
 alpha = {"90%": 0.10, "95%": 0.05, "99%": 0.01}[confidence_level]
 st.sidebar.markdown("---")
 
-# ==============================================
-# 1. PLANNING & RESULTS (Sidebar)
-# ==============================================
-st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_CALENDAR}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Experiment Planning</h2></div>""", unsafe_allow_html=True)
-with st.sidebar.expander("Step 1: Calculator", expanded=False):
+# Save & Load
+save_load_help = "Workflow Continuity: Capture a snapshot. Download on Day 7, then re-upload on Day 14 to see evolution."
+render_sidebar_header(ICON_UPLOAD, "Save & Load Analysis", help_text=save_load_help)
+with st.sidebar.expander("Open Controls", expanded=False):
+    current_state = {k: st.session_state[k] for k in ["users_c", "conv_c", "rev_c", "prod_c", "users_v", "conv_v", "rev_v", "prod_v", "days", "conf_level"]}
+    st.download_button(label="Download Snapshot (.json)", data=json.dumps(current_state, indent=2), file_name="experiment.json", mime="application/json")
+    uploaded_file = st.file_uploader("Upload Snapshot", type=["json"])
+    if uploaded_file:
+        data = json.load(uploaded_file)
+        for k, v in data.items(): st.session_state[k] = v
+        st.rerun()
+st.sidebar.markdown("---")
+
+# Planning
+render_sidebar_header(ICON_CALENDAR, "Experiment Planning")
+with st.sidebar.expander("Calculator", expanded=False):
     p_traffic = st.number_input("Traffic (Last 28 Days)", step=1000, key="p_traffic")
-    p_base_cr = st.number_input("Baseline CR (%)", step=0.1, key="p_base_cr")
-    p_base_aov = st.number_input("Baseline AOV ($)", step=1.0, key="p_base_aov")
+    p_cr = st.number_input("Baseline CR (%)", step=0.1, key="p_base_cr")
     p_mde = st.number_input("Target Lift (%)", step=0.5, key="p_mde")
     if st.button("Calculate Duration"):
         daily = p_traffic / 28
-        e_cr = proportion_effectsize(p_base_cr/100, (p_base_cr/100)*(1+p_mde/100))
+        e_cr = proportion_effectsize(p_cr/100, (p_cr/100)*(1+p_mde/100))
         n_cr = NormalIndPower().solve_power(effect_size=e_cr, alpha=alpha, power=0.8, ratio=1)
         st.info(f"Need {int((n_cr*2)/daily)} days")
+st.sidebar.markdown("---")
 
+# Enter Results
+render_sidebar_header(ICON_TROPHY, "Enter Results")
+st.sidebar.subheader("Control Group")
+users_control = st.sidebar.number_input("Users", min_value=1, key="users_c")
+conv_control = st.sidebar.number_input("Conversions", min_value=0, key="conv_c")
+rev_control = st.sidebar.number_input("Revenue ($)", min_value=0.0, key="rev_c")
+prod_control = st.sidebar.number_input("Items", min_value=0, key="prod_c")
 st.sidebar.markdown("---")
-st.sidebar.header("Step 2: Results")
-users_control = st.sidebar.number_input("Control Users", min_value=1, key="users_c")
-conv_control = st.sidebar.number_input("Control Conversions", min_value=0, key="conv_c")
-rev_control = st.sidebar.number_input("Control Revenue ($)", min_value=0.0, key="rev_c")
-prod_control = st.sidebar.number_input("Control Items", min_value=0, key="prod_c")
-st.sidebar.markdown("---")
-users_variation = st.sidebar.number_input("Variation Users", min_value=1, key="users_v")
-conv_variation = st.sidebar.number_input("Variation Conversions", min_value=0, key="conv_v")
-rev_variation = st.sidebar.number_input("Variation Revenue ($)", min_value=0.0, key="rev_v")
-prod_variation = st.sidebar.number_input("Variation Items", min_value=0, key="prod_v")
+st.sidebar.subheader("Variation Group")
+users_variation = st.sidebar.number_input("Users", min_value=1, key="users_v")
+conv_variation = st.sidebar.number_input("Conversions", min_value=0, key="conv_v")
+rev_variation = st.sidebar.number_input("Revenue ($)", min_value=0.0, key="rev_v")
+prod_variation = st.sidebar.number_input("Items", min_value=0, key="prod_v")
 st.sidebar.markdown("---")
 days_run = st.sidebar.number_input("Days Test Ran", min_value=1, key="days")
 
-# --- CORE MATH ---
+# ==============================================
+# UI - MAIN DASHBOARD
+# ==============================================
 def calculate_uplift(ctrl, var): return ((var - ctrl) / ctrl) * 100 if ctrl > 0 else 0
 rate_c, rate_v = conv_control/users_control, conv_variation/users_variation
 up_cr = calculate_uplift(rate_c, rate_v)
@@ -117,56 +116,77 @@ aov_c, aov_v = (rev_control/conv_control if conv_control > 0 else 0), (rev_varia
 up_aov = calculate_uplift(aov_c, aov_v)
 rpv_c, rpv_v = rev_control/users_control, rev_variation/users_variation
 z_stat, p_val = proportions_ztest([conv_control, conv_variation], [users_control, users_variation])
-srm_chi, p_srm = chi2_contingency([[users_control, users_variation], [(users_control+users_variation)/2]*2])[:2]
 
-# --- DASHBOARD ---
-render_header(ICON_BAR_CHART, "Results Summary", level=2)
+render_main_header(ICON_BAR_CHART, "Results Summary")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("CR", f"{rate_v*100:.2f}%", f"{up_cr:+.2f}%")
 c2.metric("RPV", f"${rpv_v:.2f}", f"{calculate_uplift(rpv_c, rpv_v):+.2f}%")
 c3.metric("AOV", f"${aov_v:.2f}", f"{up_aov:+.2f}%")
-c4.success(f"Sig: {p_val <= alpha}")
+c4.success(f"Sig: {p_val <= alpha} (p={p_val:.4f})")
 
 st.markdown("---")
-render_header(ICON_PIE, "Simpson's Paradox Detector", level=3)
+render_main_header(ICON_PIE, "Simpson's Paradox Detector", level=3)
 with st.expander("Expand Segments", expanded=False):
-    s1_uc = st.number_input("S1 Control Users", key="s1_uc")
-    s1_cc = st.number_input("S1 Control Conv.", key="s1_cc")
-    s1_uv = st.number_input("S1 Var Users", key="s1_uv")
-    s1_cv = st.number_input("S1 Var Conv.", key="s1_cv")
+    col_s1, col_s2 = st.columns(2)
+    with col_s1:
+        s1_uc = st.number_input("S1 Control Users", key="s1_uc")
+        s1_cc = st.number_input("S1 Control Conv.", key="s1_cc")
+        s1_uv = st.number_input("S1 Var Users", key="s1_uv")
+        s1_cv = st.number_input("S1 Var Conv.", key="s1_cv")
+    with col_s2:
+        s2_uc = st.number_input("S2 Control Users", key="s2_uc")
+        s2_cc = st.number_input("S2 Control Conv.", key="s2_cc")
+        s2_uv = st.number_input("S2 Var Users", key="s2_uv")
+        s2_cv = st.number_input("S2 Var Conv.", key="s2_cv")
+    
     if st.button("Check Paradox"):
         up1 = calculate_uplift(s1_cc/s1_uc if s1_uc>0 else 0, s1_cv/s1_uv if s1_uv>0 else 0)
-        st.write(f"Segment 1 Uplift: {up1:.2f}%")
+        up2 = calculate_uplift(s2_cc/s2_uc if s2_uc>0 else 0, s2_cv/s2_uv if s2_uv>0 else 0)
+        st.write(f"Segment 1 Uplift: {up1:.2f}% | Segment 2 Uplift: {up2:.2f}%")
 
 st.markdown("---")
-render_header(ICON_BRAIN, "Deep Dive Analysis", level=2)
+render_main_header(ICON_BRAIN, "Deep Dive Analysis")
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["Smart Analysis", "AI Analysis", "Strategic Matrix", "Bayesian", "Bootstrap"])
 
-def smart_report():
-    report = [f"### Executive Summary\nTest is {'Significant' if p_val <= alpha else 'Inconclusive'} (p={p_val:.4f})."]
-    report.append(f"### Performance\nCR uplift: {up_cr:.2f}%. AOV uplift: {up_aov:.2f}%.")
-    report.append("### Visual Insights\n**1. Strategic Matrix:**")
-    if up_cr > 0 and up_aov > 0: report.append("Variation is in the Win-Win zone.")
-    elif up_cr > 0 and up_aov < 0: report.append("Volume up, Value down trade-off.")
-    elif up_cr < 0 and up_aov > 0: report.append("Value up, Volume down trade-off.")
-    else: report.append("Loss-Loss zone.")
-    return "\n".join(report)
+with tab1:
+    st.markdown("### Smart Interpretation")
+    st.markdown(f"**Executive Summary:** Test is {'Significant' if p_val <= alpha else 'Inconclusive'}.")
+    st.markdown(f"**Performance Breakdown:** CR uplift: {up_cr:.2f}%. AOV uplift: {up_aov:.2f}%.")
+    st.markdown("**Visual Insights (Strategic Matrix):**")
+    if up_cr > 0 and up_aov > 0: st.success("Variation is in the Win-Win zone.")
+    elif up_cr > 0 and up_aov < 0: st.warning("Volume up, Value down trade-off detected.")
+    elif up_cr < 0 and up_aov > 0: st.warning("Value up, Volume down trade-off detected.")
+    else: st.error("Loss-Loss zone.")
 
-with tab1: st.markdown(smart_report())
 with tab2:
-    key = st.text_input("API Key", type="password")
-    if st.button("Generate AI"):
-        st.write("Connecting to AI...") # Standard logic placeholder
+    st.info("AI Analysis module active. Enter hypothesis and API key to proceed.")
+    st.text_area("Hypothesis", placeholder="We believed that...")
+    st.text_input("API Key", type="password")
+
 with tab3:
-    fig, ax = plt.subplots()
-    ax.scatter([rate_c*100], [aov_c], color='blue', label='C')
-    ax.scatter([rate_v*100], [aov_v], color='green', label='V')
-    ax.set_xlabel("CR %"); ax.set_ylabel("AOV $"); ax.legend(); st.pyplot(fig)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.scatter([rate_c*100], [aov_c], color='blue', s=200, label='Control')
+    ax.scatter([rate_v*100], [aov_v], color='green', s=200, label='Variation')
+    ax.set_xlabel("Conversion Rate (%)"); ax.set_ylabel("Average Order Value ($)")
+    ax.legend(); st.pyplot(fig)
+
 with tab4:
-    x = np.linspace(0, 1, 500)
-    plt.plot(x, beta(conv_control+1, users_control-conv_control+1).pdf(x))
-    plt.plot(x, beta(conv_variation+1, users_variation-conv_variation+1).pdf(x))
-    st.pyplot(plt.gcf())
+    x = np.linspace(max(0, rate_c-0.05), min(1, rate_c+0.05), 500)
+    y_c = beta(conv_control+1, users_control-conv_control+1).pdf(x)
+    y_v = beta(conv_variation+1, users_variation-conv_variation+1).pdf(x)
+    fig, ax = plt.subplots()
+    ax.plot(x, y_c, label="Control", color="blue")
+    ax.plot(x, y_v, label="Variation", color="green")
+    ax.fill_between(x, y_c, alpha=0.2, color="blue")
+    ax.fill_between(x, y_v, alpha=0.2, color="green")
+    ax.legend(); st.pyplot(fig)
+
 with tab5:
-    diffs = (np.random.binomial(users_variation, rate_v, 1000)/users_variation) - (np.random.binomial(users_control, rate_c, 1000)/users_control)
-    plt.hist(diffs, bins=30); st.pyplot(plt.gcf())
+    sim_c = np.random.binomial(users_control, rate_c, 5000)/users_control
+    sim_v = np.random.binomial(users_variation, rate_v, 5000)/users_variation
+    diffs = (sim_v - sim_c) * 100
+    fig, ax = plt.subplots()
+    ax.hist(diffs, bins=50, color='orange', alpha=0.7, edgecolor='black')
+    ax.axvline(0, color='red', linestyle='--')
+    ax.set_title("Distribution of Lift (%)")
+    st.pyplot(fig)
