@@ -115,7 +115,7 @@ confidence_level = st.sidebar.selectbox(
     ["95%", "90%", "99%"],
     index=0,
     key="conf_level",
-    help="Select statistical significance threshold. 90% - Fast | Marketing copy, colors, low-risk UI tweaks. 95% - Balanced | Standard features, flows, and layouts. 99% - low	Pricing changes, checkout logic, backend algorithms."
+    help="Select statistical significance threshold ~ 90% - Fast (Marketing copy, colors, low-risk UI tweaks.)  | 95% - Balanced (Standard features, flows, and layouts.) | 99% - low	(Pricing changes, checkout logic, backend algorithms.)"
 )
 alpha_map = {"90%": 0.10, "95%": 0.05, "99%": 0.01}
 alpha = alpha_map[confidence_level]
