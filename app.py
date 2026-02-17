@@ -14,7 +14,6 @@ st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 # 📅 1. REVENUE-FIRST PLANNING TOOL (Collapsed)
 # ==============================================
 st.sidebar.title("📅 Experiment Planning")
-# CHANGED: expanded=False to keep it closed by default
 with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
     st.caption("Plan before you test. See how long you need to run to prove Revenue uplift vs Conversion uplift.")
     
@@ -33,7 +32,6 @@ with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
     )
     
     # Volatility Multiplier (Heuristic for SD)
-    # Low: SD is 1x AOV. Medium: 2x AOV. High: 3x AOV.
     sd_multiplier = 1.0 if "Low" in volatility else (2.0 if "Medium" in volatility else 3.0)
 
     if st.button("Calculate Duration"):
@@ -41,14 +39,12 @@ with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
         daily_traffic = plan_traffic_28d / 28
         
         # 2. Conversion Rate Sample Size (Binary)
-        # Effect size for proportions (Cohen's h)
         p1 = plan_base_cr / 100
         p2 = p1 * (1 + plan_mde/100)
         effect_size_cr = proportion_effectsize(p1, p2)
         n_cr = NormalIndPower().solve_power(effect_size=effect_size_cr, alpha=0.05, power=0.8, ratio=1)
         
         # 3. Revenue (RPV) Sample Size (Continuous)
-        # We estimate RPV Standard Deviation based on AOV volatility
         mean_1 = plan_base_aov
         mean_2 = plan_base_aov * (1 + plan_mde/100)
         est_sd = plan_base_aov * sd_multiplier
@@ -59,7 +55,7 @@ with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
         n_rpv_visitors = n_rpv / (plan_base_cr / 100)
 
         # 4. Calculate Days
-        days_cr = (n_cr * 2) / daily_traffic # Total traffic needed (Control + Var)
+        days_cr = (n_cr * 2) / daily_traffic 
         days_rpv = (n_rpv_visitors * 2) / daily_traffic
 
         # 5. Display Results
@@ -115,6 +111,36 @@ def perform_srm_test(observed_users, expected_split=(0.5, 0.5)):
 def calculate_uplift(ctrl, var):
     if ctrl == 0: return 0.0
     return ((var - ctrl) / ctrl) * 100
+
+def check_simpsons_paradox(seg1, seg2):
+    # Calculate Uplift for Segment 1
+    cr_c1 = seg1['conv_c'] / seg1['users_c'] if seg1['users_c'] > 0 else 0
+    cr_v1 = seg1['conv_v'] / seg1['users_v'] if seg1['users_v'] > 0 else 0
+    uplift_1 = calculate_uplift(cr_c1, cr_v1)
+    
+    # Calculate Uplift for Segment 2
+    cr_c2 = seg2['conv_c'] / seg2['users_c'] if seg2['users_c'] > 0 else 0
+    cr_v2 = seg2['conv_v'] / seg2['users_v'] if seg2['users_v'] > 0 else 0
+    uplift_2 = calculate_uplift(cr_c2, cr_v2)
+    
+    # Calculate Aggregate Uplift (Combined)
+    agg_users_c = seg1['users_c'] + seg2['users_c']
+    agg_conv_c = seg1['conv_c'] + seg2['conv_c']
+    agg_users_v = seg1['users_v'] + seg2['users_v']
+    agg_conv_v = seg1['conv_v'] + seg2['conv_v']
+    
+    cr_c_agg = agg_conv_c / agg_users_c if agg_users_c > 0 else 0
+    cr_v_agg = agg_conv_v / agg_users_v if agg_users_v > 0 else 0
+    uplift_agg = calculate_uplift(cr_c_agg, cr_v_agg)
+    
+    # Check for Paradox: Direction Flip
+    paradox = False
+    if (uplift_1 > 0 and uplift_2 > 0 and uplift_agg < 0):
+        paradox = True
+    elif (uplift_1 < 0 and uplift_2 < 0 and uplift_agg > 0):
+        paradox = True
+        
+    return paradox, uplift_1, uplift_2, uplift_agg
 
 def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI"):
     if not api_key:
@@ -269,12 +295,6 @@ def generate_smart_analysis(hypothesis, metrics):
         report.append(f"The histogram is entirely to the left of 0. The 95% Confidence Interval is negative, confirming a **Statistical Loss**.")
     else:
         report.append(f"The histogram is centered near 0 and the Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) **crosses zero**. This explains why the test is Inconclusive—there is still a chance the true difference is 0.")
-
-    report.append("\n**3. Product Velocity:**")
-    if metrics.get('uplift_apo', 0) > 0:
-        report.append(f"Users in the Variation are buying **{metrics['uplift_apo']:.2f}% more items per order**. The basket size is increasing.")
-    else:
-        report.append(f"Users in the Variation are buying **{abs(metrics['uplift_apo']):.2f}% fewer items per order**. The basket size is shrinking.")
 
     return "\n\n".join(report)
 
@@ -434,6 +454,48 @@ with col2:
         st.warning(f"⚠️ **Short Duration ({days_run} Days)**")
     else:
         st.success(f"✅ **Duration OK ({days_run} Days)**")
+
+# ==============================================
+# 🕵️ 5. SIMPSON'S PARADOX DETECTOR (New!)
+# ==============================================
+st.markdown("---")
+with st.expander("🕵️ Advanced: Simpson's Paradox Detector (Segment Analysis)", expanded=False):
+    st.caption("Check if your aggregate result is misleading by comparing two key segments (e.g. Mobile vs Desktop).")
+    
+    col_seg1, col_seg2 = st.columns(2)
+    
+    with col_seg1:
+        st.subheader("Segment 1 (e.g. Mobile)")
+        s1_users_c = st.number_input("Control Users", min_value=0, value=2000, key="s1_uc")
+        s1_conv_c = st.number_input("Control Conv.", min_value=0, value=100, key="s1_cc")
+        s1_users_v = st.number_input("Var Users", min_value=0, value=2000, key="s1_uv")
+        s1_conv_v = st.number_input("Var Conv.", min_value=0, value=110, key="s1_cv")
+
+    with col_seg2:
+        st.subheader("Segment 2 (e.g. Desktop)")
+        s2_users_c = st.number_input("Control Users", min_value=0, value=3000, key="s2_uc")
+        s2_conv_c = st.number_input("Control Conv.", min_value=0, value=400, key="s2_cc")
+        s2_users_v = st.number_input("Var Users", min_value=0, value=3000, key="s2_uv")
+        s2_conv_v = st.number_input("Var Conv.", min_value=0, value=420, key="s2_cv")
+
+    if st.button("Check for Paradox"):
+        seg1 = {'users_c': s1_users_c, 'conv_c': s1_conv_c, 'users_v': s1_users_v, 'conv_v': s1_conv_v}
+        seg2 = {'users_c': s2_users_c, 'conv_c': s2_conv_c, 'users_v': s2_users_v, 'conv_v': s2_conv_v}
+        
+        is_paradox, up1, up2, up_agg = check_simpsons_paradox(seg1, seg2)
+        
+        st.markdown("---")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Segment 1 Uplift", f"{up1:.2f}%")
+        c2.metric("Segment 2 Uplift", f"{up2:.2f}%")
+        c3.metric("Combined Uplift", f"{up_agg:.2f}%")
+        
+        if is_paradox:
+            st.error("⚠️ **SIMPSON'S PARADOX DETECTED!**")
+            st.write(f"The Variation trend in the segments ({'Positive' if up1>0 else 'Negative'}) CONTRADICTS the combined trend.")
+            st.warning("👉 **Trust the Segment data. The aggregate result is misleading due to traffic mismatches.**")
+        else:
+            st.success("✅ **No Paradox Detected.** The trends are consistent.")
 
 st.markdown("---")
 
