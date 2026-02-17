@@ -59,7 +59,7 @@ def render_header(svg_code, text, level=2):
 # ==============================================
 # MAIN PAGE HEADER
 # ==============================================
-st.title("Enterprise A/B Test Analyzer v2.0")
+st.title("A/B Test Analyzer v1.7.1")
 
 # ==============================================
 # 0. SIDEBAR - STATE & SETTINGS
