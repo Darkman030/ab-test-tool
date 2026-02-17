@@ -69,7 +69,7 @@ st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_S
 # --- A. SAVE / LOAD STATE (Closed by default) ---
 st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_UPLOAD}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Save & Load Analysis</h2></div>""", unsafe_allow_html=True)
 with st.sidebar.expander("Open Controls", expanded=False):
-    st.info("Download your current inputs as a file to resume later without re-typing.")
+    st.info("Download your current inputs as a file to resume later without re-typing. Workflow Continuity: Use this to capture a snapshot of your experiment. Download data on Day 7, then re-upload on Day 14 to see how Probability and Risk evolve without re-typing baseline settings.")
     
     # 1. Download State
     # Collect all current values
