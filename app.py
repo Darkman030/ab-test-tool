@@ -119,7 +119,7 @@ st.sidebar.markdown("---")
 # ==============================================
 # 2. EXPERIMENT DATA INPUTS
 # ==============================================
-st.sidebar.header("Step 2: Enter Results")
+st.sidebar.header("Enter Experiment Results")
 st.sidebar.caption("Input your experiment data below.")
 
 # Control
