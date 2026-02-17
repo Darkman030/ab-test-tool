@@ -68,8 +68,8 @@ st.title("Professional A/B Test Analyzer (Enterprise Edition)")
 st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_SETTINGS}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Settings</h2></div>""", unsafe_allow_html=True)
 
 # --- A. SAVE / LOAD STATE (Closed by default) ---
-with st.sidebar.expander("💾 Save & Load Analysis", expanded=False):
-    render_header(ICON_UPLOAD, "Manage Data", level=4)
+render_header(ICON_UPLOAD, "Save & Load Analysis", level=3)
+with st.sidebar.expander("Manage Files", expanded=False):
     st.info("Download your current inputs as a file to resume later without re-typing.")
     
     # 1. Download State
@@ -299,6 +299,26 @@ def generate_smart_analysis(hypothesis, metrics, alpha_val):
         report.append(f"Financial Outlook: POSITIVE. Variation generates ${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor.")
     else:
         report.append(f"Financial Outlook: NEGATIVE. Variation generates ${metrics['rpv_c'] - metrics['rpv_v']:.2f} less per visitor.")
+    
+    # RESTORED VISUAL INSIGHTS
+    report.append("### Visual Insights")
+    report.append("**1. Strategic Matrix:**")
+    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
+        report.append("The Variation dot is positioned to the bottom-right of the Control (Volume up, Value down).")
+    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
+        report.append("The Variation dot is positioned to the top-left (Volume down, Value up).")
+    elif metrics['uplift_cr'] > 0 and metrics['uplift_aov'] > 0:
+        report.append("The Variation dot is in the top-right (Green Zone). Win-Win.")
+    else:
+        report.append("The Variation dot is in the bottom-left (Red Zone). Loss-Loss.")
+
+    report.append("\n**2. Bootstrap & CI:**")
+    if metrics['ci_low'] > 0:
+        report.append(f"The Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) is entirely positive.")
+    elif metrics['ci_high'] < 0:
+        report.append(f"The Confidence Interval is entirely negative.")
+    else:
+        report.append(f"The Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) crosses zero, indicating uncertainty.")
         
     return "\n\n".join(report)
 
