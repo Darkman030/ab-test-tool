@@ -375,7 +375,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 with tab1:
     st.markdown("### 🧠 Smart Executive Summary (Free)")
     st.info("Generated instantly using statistical rules (No API Key required).")
-    user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
+    user_hypothesis = st.text_area("Hypothesis (optional)", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Analysis"):
         # 1. Calc CI
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
