@@ -39,7 +39,7 @@ def render_header(svg_code, text, level=2):
 # ==============================================
 # MAIN PAGE HEADER
 # ==============================================
-render_header(ICON_DESKTOP, "Professional A/B Test Analyzer (Enterprise Edition)", level=1)
+render_header("A/B Test Analyzer v1.6.1", level=1)
 
 # ==============================================
 # 0. GLOBAL SETTINGS
@@ -120,7 +120,7 @@ st.sidebar.markdown("---")
 # ==============================================
 # 2. EXPERIMENT DATA INPUTS
 # ==============================================
-st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_FLASK}<h2 style="display: inline; font-size: 1.5rem;">Enter Results</h2></div>""", unsafe_allow_html=True)
+st.sidebar.markdown(f"""<div style="display: flex; align-items: center;"><h2 style="display: inline; font-size: 1.5rem;">Enter Results</h2></div>""", unsafe_allow_html=True)
 st.sidebar.caption("Input your experiment data below.")
 
 # Control
