@@ -11,10 +11,11 @@ st.set_page_config(page_title="A/B Test Analyzer", page_icon="📊", layout="wid
 st.title("📊 Professional A/B Test Analyzer (Final Edition)")
 
 # ==============================================
-# 📅 1. REVENUE-FIRST PLANNING TOOL (New!)
+# 📅 1. REVENUE-FIRST PLANNING TOOL (Collapsed)
 # ==============================================
 st.sidebar.title("📅 Experiment Planning")
-with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=True):
+# CHANGED: expanded=False to keep it closed by default
+with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
     st.caption("Plan before you test. See how long you need to run to prove Revenue uplift vs Conversion uplift.")
     
     # Inputs
@@ -48,10 +49,6 @@ with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=True):
         
         # 3. Revenue (RPV) Sample Size (Continuous)
         # We estimate RPV Standard Deviation based on AOV volatility
-        # Effect size for means (Cohen's d) = (Mean1 - Mean2) / SD
-        # Mean1 = RPV1 = CR * AOV. 
-        # But for simple AOV testing, we assume CR is constant and check AOV lift.
-        # Let's simplify: To detect X% lift in RPV, we use the estimated SD.
         mean_1 = plan_base_aov
         mean_2 = plan_base_aov * (1 + plan_mde/100)
         est_sd = plan_base_aov * sd_multiplier
@@ -59,8 +56,6 @@ with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=True):
         n_rpv = TTestIndPower().solve_power(effect_size=effect_size_rpv, alpha=0.05, power=0.8, ratio=1)
         
         # Adjust RPV n because not everyone converts (n applies to visitors, not just buyers)
-        # The T-test gives 'n' per group. But for RPV, the noise is diluted by non-converters.
-        # A common heuristic for RPV sample size is roughly n_aov / CR.
         n_rpv_visitors = n_rpv / (plan_base_cr / 100)
 
         # 4. Calculate Days
@@ -228,7 +223,23 @@ def generate_smart_analysis(hypothesis, metrics):
         aov_text = f"{'increased' if metrics['uplift_aov'] > 0 else 'decreased'} by {metrics['uplift_aov']:.2f}%"
     report.append(f"- **Average Order Value:** {aov_text} (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
 
-    # 4. Recommendation
+    # 4. Bayesian Risk
+    report.append("### 🎲 Bayesian Risk Assessment")
+    report.append(f"- **Probability to be Best:** {metrics['prob_v_wins']:.1f}%")
+    if metrics['prob_v_wins'] > 95:
+        report.append("✅ **High Confidence:** There is a >95% chance the Variation is superior.")
+    elif metrics['prob_v_wins'] < 5:
+        report.append("❌ **High Confidence:** There is a >95% chance the Variation is inferior.")
+    else:
+        report.append("⚠️ **Uncertain:** The probability is between 5% and 95%, meaning the winner is not yet clear.")
+    
+    report.append(f"- **Risk of Switching:** {metrics['loss_v']:.5f}%")
+    if metrics['loss_v'] < 0.01:
+        report.append("✅ **Low Risk:** If you switch to Variation and it loses, the expected loss is negligible.")
+    else:
+        report.append("⚠️ **Material Risk:** Switching now carries a potential cost in conversion rate.")
+
+    # 5. Recommendation
     report.append("### 🚀 Recommendation")
     if metrics['uplift_rpv'] > 0:
         financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
@@ -239,20 +250,19 @@ def generate_smart_analysis(hypothesis, metrics):
         report.append(f"**Financial Outlook: NEGATIVE.**")
         report.append(f"Variation generates **${metrics['rpv_c'] - metrics['rpv_v']:.2f} less** per visitor.")
         
-    # 5. Visual Insights
-    report.append("### 📈 Visual Insights (Graph Interpretation)")
-    
+    # 6. Visual Insights
+    report.append("### 📈 Visual Insights")
     report.append("**1. Strategic Matrix:**")
     if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
         report.append("The Variation dot is positioned to the **bottom-right** of the Control. This confirms the trade-off: you are gaining Volume (higher CR) but losing Value (lower AOV).")
     elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
-        report.append("The Variation dot is positioned to the **top-left**. You are sacrificing Volume for higher Value (The 'Luxury Effect').")
+        report.append("The Variation dot is positioned to the **top-left** (Volume down, Value up).")
     elif metrics['uplift_cr'] > 0 and metrics['uplift_aov'] > 0:
-        report.append("The Variation dot is in the **top-right (Green Zone)**. This is a Win-Win scenario.")
+        report.append("The Variation dot is in the **top-right (Green Zone)**. Win-Win.")
     else:
-        report.append("The Variation dot is in the **bottom-left (Red Zone)**. Both metrics are underperforming.")
+        report.append("The Variation dot is in the **bottom-left (Red Zone)**. Loss-Loss.")
 
-    report.append("\n**2. Bootstrap & Confidence Interval:**")
+    report.append("\n**2. Bootstrap & CI:**")
     if metrics['ci_low'] > 0:
         report.append(f"The histogram is entirely to the right of 0. The 95% Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) is positive, confirming a **Statistical Win**.")
     elif metrics['ci_high'] < 0:
@@ -448,15 +458,25 @@ with tab1:
     st.info("Generated instantly using statistical rules (No API Key required).")
     user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Analysis"):
+        # 1. Calc CI
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=0.05, method='normal')
         diff_ci_low = (ci_low - rate_c) * 100
         diff_ci_high = (ci_high - rate_c) * 100
+        
+        # 2. Calc Bayesian Risk
+        prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
+            conv_control+1, users_control-conv_control+1, 
+            conv_variation+1, users_variation-conv_variation+1
+        )
 
         metrics_payload = {
             "days": days_run, "users_c": users_control, "users_v": users_variation, "p_srm": p_value_srm,
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": uplift_cr, "p_cr": p_value_z,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
-            "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": uplift_apo 
+            "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": uplift_apo,
+            "prob_v_wins": prob_v_wins * 100,
+            "loss_v": loss_v * 100,
+            "loss_c": loss_c * 100
         }
         smart_result = generate_smart_analysis(user_hypothesis, metrics_payload)
         st.markdown("---")
@@ -497,8 +517,6 @@ with tab2:
         }
         
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
-        
-        # UPDATED: Move headline above the divider
         with st.spinner(f"Connecting to {provider_name}..."):
             ai_result = get_ai_analysis(api_key_input, user_hypothesis_ai, metrics_payload, provider=provider_name)
             st.markdown(f"### A/B Test Analysis: {user_hypothesis_ai if user_hypothesis_ai else 'Hypothesis'}")
