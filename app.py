@@ -122,7 +122,7 @@ st.sidebar.markdown("---")
 # ==============================================
 st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_CALENDAR}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Experiment Planning</h2></div>""", unsafe_allow_html=True)
 
-with st.sidebar.expander("Step 1: Sample Size Calculator", expanded=False):
+with st.sidebar.expander("Sample Size Calculator", expanded=False):
     st.caption(f"Plan required traffic using {confidence_level} confidence.")
     
     # IMPORTANT: NO value=... here. Rely on key/session_state.
@@ -171,7 +171,7 @@ st.sidebar.markdown("---")
 # ==============================================
 # 2. EXPERIMENT DATA INPUTS
 # ==============================================
-st.sidebar.header("Step 2: Enter Results")
+st.sidebar.markdown(f"""<div style="display: flex; align-items: center;">{ICON_CALENDAR}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Experiment Planning</h2></div>""", unsafe_allow_html=True)
 st.sidebar.caption("Input your experiment data below.")
 
 # Control
