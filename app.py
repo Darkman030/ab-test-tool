@@ -8,7 +8,7 @@ import openai
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="A/B Test Analyzer", layout="wide")
-st.title("Professional A/B Test Analyzer (Enterprise Edition)")
+st.title("A/B Test Analyzer v1.6")
 
 # ==============================================
 # 0. GLOBAL SETTINGS
