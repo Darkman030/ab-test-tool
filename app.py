@@ -172,7 +172,7 @@ st.sidebar.markdown("---")
 # ==============================================
 # 2. EXPERIMENT DATA INPUTS
 # ==============================================
-render_sidebar_header(ICON_TROPHY, "Enter Results")
+render.sidebar.header(ICON_TROPHY, "Enter Results")
 st.sidebar.caption("Input your experiment data below.")
 
 # Control
