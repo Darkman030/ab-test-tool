@@ -370,6 +370,7 @@ z_stat, p_val = proportions_ztest([conv_control, conv_variation], [users_control
 srm_chi, p_srm = perform_srm_test([users_control, users_variation])
 
 # Dashboard UI
+st.title("A/B Test Analyzer v1.7.4")
 render_header(ICON_BAR_CHART, "Results Summary")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Conversion Rate", f"{rate_v*100:.2f}%", f"{up_cr:+.2f}%")
