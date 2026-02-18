@@ -14,7 +14,6 @@ matplotlib.use('Agg') # Prevents crashing in non-GUI environments
 
 # --- 2. ASSETS & ICONS ---
 ICON_SETTINGS = """<svg viewBox="0 0 1024 1024" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M512 512m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"></path><path d="M512 306.8c27.7 0 54.6 5.4 79.8 16.1 24.4 10.3 46.4 25.1 65.2 44s33.6 40.8 44 65.2c10.7 25.3 16.1 52.1 16.1 79.8 0 27.7-5.4 54.6-16.1 79.8-10.3 24.4-25.1 46.4-44 65.2-18.8 18.8-40.8 33.6-65.2 44-25.3 10.7-52.1 16.1-79.8 16.1-27.7 0-54.6-5.4-79.8-16.1-24.4-10.3-46.4-25.1-65.2-44-18.8-18.8-33.6-40.8-44-65.2-10.7-25.3-16.1-52.1-16.1-79.8 0-27.7 5.4-54.6 16.1-79.8 10.3-24.4 25.1-46.4 44-65.2s40.8-33.6 65.2-44c25.2-10.6 52.1-16.1 79.8-16.1m0-22c-125.4 0-227.1 101.7-227.1 227.1S386.6 739.1 512 739.1c125.4 0 227.1-101.7 227.1-227.1S637.4 284.8 512 284.8z" fill="#ffffff"></path><path d="M512 618.7c-58.9 0-106.8-47.9-106.8-106.8S453.1 405.1 512 405.1 618.8 453 618.8 511.9 570.9 618.7 512 618.7z m0-193.5c-47.9 0-86.8 38.9-86.8 86.8s38.9 86.8 86.8 86.8 86.8-38.9 86.8-86.8-38.9-86.8-86.8-86.8z" fill="#E73B37"></path><path d="M544.2 107.3l34.1 92.3 7.4 19.9 20.2 6.6c10.3 3.4 32.1 12.9 43.4 18.1l18.7 8.6 18.6-8.9 87.9-41.8 46.4 46.5-41.2 89.4-8.9 19.3 9.6 19c6.8 13.4 12.6 27.5 17.4 41.9l6.7 20.5 20.3 7.2 91.7 32.6v65.7l-92.3 34.1-19.9 7.4-6.6 20.2c-4.7 14.4-10.6 28.4-17.4 41.9l-9.8 19.3 9.3 19.5 41.8 87.9-46.5 46.5-89.1-41.3-19.3-8.9-19 9.6c-13.4 6.8-27.5 12.6-41.9 17.4l-20.5 6.7-7.2 20.3-32.6 91.7h-65.7l-34.1-92.3-7.4-19.9-20.2-6.6c-10.3-3.4-32.1-12.9-43.4-18.1L356 771l-18.6 8.9-87.9 41.8-46.4-46.5 41.2-89.3 8.9-19.3-9.6-19c-6.8-13.4-12.6-27.5-17.4-41.9l-6.7-20.5-20.3-7.2-91.7-32.6v-65.7l92.3-34.1 19.9-7.4 6.6-20.2c3.4-10.3 12.9-32.1 18.1-43.4l8.6-18.7-8.9-18.6-41.8-87.9 46.4-46.4 89.3 41.2 19.3 8.9 19-9.6c13.4-6.8 27.5-12.6 41.9-17.4l20.5-6.7 7.2-20.3 32.6-91.7h65.7m30.7-44.1H447.4l-43 121c-16.6 5.5-32.7 12.1-48.1 19.9l-117.2-54-90.1 90.1 55.2 116s-14.5 31.4-19.9 48.1l-121 44.7v127.4l121 43c5.5 16.6 12.1 32.6 19.9 48l-54 117.2 90.1 90.1 116-55.2s31.4 14.5 48.1 19.9l44.7 121h127.4l43-121c16.6-5.5 32.6-12.1 48-19.9l117.2 54 90.1-90.1-55.2-116c7.8-15.4 14.5-31.4 19.9-48l121-44.7V447.4l-121-43c-5.5-16.6-12.1-32.6-19.9-48l54-117.2-90.1-90.1-115.9 55.2s-31.5-14.5-48.1-19.9L574.9 63.3z" fill="#ffffff"></path></svg>"""
-ICON_CALENDAR = """<svg viewBox="0 0 1024 1024" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M716 190.9v-67.8h-44v67.8H352v-67.8h-44v67.8H92v710h840v-710H716z m-580 44h172v69.2h44v-69.2h320v69.2h44v-69.2h172v151.3H136V234.9z m752 622H136V402.2h752v454.7z" fill="#ffffff"></path><path d="M319 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path><path d="M510 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path><path d="M701.1 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path><path d="M319 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path><path d="M510 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path><path d="M701.1 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"></path></svg>"""
 ICON_PIE = """<svg viewBox="0 0 1024 1024" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M429.9 186.7v406.4h407.5c-4 34.1-12.8 67.3-26.2 99.1-18.4 43.6-44.8 82.7-78.5 116.3-33.6 33.6-72.8 60-116.4 78.4-45.1 19.1-93 28.7-142.5 28.7-49.4 0-97.4-9.7-142.5-28.7-43.6-18.4-82.7-44.8-116.4-78.4-33.6-33.6-60-72.7-78.4-116.3-19.1-45.1-28.7-93-28.7-142.4s9.7-97.3 28.7-142.4c18.4-43.6 44.8-82.7 78.4-116.3 33.6-33.6 72.8-60 116.4-78.4 31.7-13.2 64.7-21.9 98.6-26m44-46.6c-226.4 0-410 183.5-410 409.8s183.6 409.8 410 409.8 410-183.5 410-409.8v-0.8h-410v-409z" fill="#ffffff"></path><path d="M566.1 80.5c43.7 1.7 86.4 10.6 127 26.4 44 17.1 84.2 41.8 119.6 73.5 71.7 64.1 117.4 151.7 128.7 246.7 1.2 9.9 2 20 2.4 30.2H566.1V80.5m-16-16.3v409h410c0-16.3-1-32.3-2.9-48.1C933.1 221.9 760 64.2 550.1 64.2zM264.7 770.4c-23.1-23.1-42.3-49.1-57.3-77.7l-14.7 6.5c35.7 68.2 94 122.7 165 153.5l4.3-15.6c-36.3-16-69.1-38.4-97.3-66.7z" fill="#E73B37"></path></svg>"""
 ICON_BAR_CHART = """<svg viewBox="0 0 1024 1024" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M928.1 881v44H95.9V99h44v782z" fill="#ffffff"></path><path d="M352 435.7v403.4H204V435.7h148m22-22H182v447.4h192V413.7zM608 307.9v531.2H460V307.9h148m22-22H438v575.2h192V285.9z" fill="#ffffff"></path><path d="M866.1 177.3v663.9H714V177.3h152.1m20-20H694v703.9h192V157.3h0.1z" fill="#E73B37"></path></svg>"""
 ICON_BRAIN = """<svg viewBox="0 0 1024 1024" style="width: 1.2em; height: 1.2em; vertical-align: middle; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M512 301.2m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"></path><path d="M400.3 744.5c2.1-0.7 4.1-1.4 6.2-2-2 0.6-4.1 1.3-6.2 2z m0 0c2.1-0.7 4.1-1.4 6.2-2-2 0.6-4.1 1.3-6.2 2z" fill="#ffffff"></path><path d="M511.8 256.6c24.4 0 44.2 19.8 44.2 44.2S536.2 345 511.8 345s-44.2-19.8-44.2-44.2 19.9-44.2 44.2-44.2m0-20c-35.5 0-64.2 28.7-64.2 64.2s28.7 64.2 64.2 64.2 64.2-28.7 64.2-64.2-28.7-64.2-64.2-64.2z" fill="#E73B37"></path><path d="M730.7 529.5c0.4-8.7 0.6-17.4 0.6-26.2 0-179.6-86.1-339.1-219.3-439.5-133.1 100.4-219.2 259.9-219.2 439.5 0 8.8 0.2 17.5 0.6 26.1-56 56-90.6 133.3-90.6 218.7 0 61.7 18 119.1 49.1 167.3 30.3-49.8 74.7-90.1 127.7-115.3 39-18.6 82.7-29 128.8-29 48.3 0 93.9 11.4 134.3 31.7 52.5 26.3 96.3 67.7 125.6 118.4 33.4-49.4 52.9-108.9 52.9-173.1 0-85.4-34.6-162.6-90.5-218.6z m-90.6 449.2c-9.1-27-13.7-55.5-13.7-84.4 0-35.8 7-70.6 20.8-103.2 8.4-19.8 19-38.4 31.9-55.5 9.7 61.5 29.5 119.7 57.8 172.6-36.4 17.8-69 41.6-96.8 70.5z m364.2-85.3c-0.7-0.3-1.5-0.5-2.2-0.8-0.4-0.2-0.9-0.3-1.3-0.5-0.6-0.2-1.3-0.5-1.9-0.7-0.8-0.3-1.5-0.5-2.3-0.8-0.8-0.3-1.5-0.5-2.3-0.7l-0.9-0.3c-1-0.3-2.1-0.7-3.1-1-1.2-0.4-2.4-0.7-3.5-1.1l-3-0.9c-0.2-0.1-0.4-0.1-0.7-0.2-1.1-0.3-2.3-0.7-3.4-1-1.2-0.3-2.4-0.6-3.5-0.9l-3.6-0.9-3.6-0.9c-1-0.3-2.1-0.5-3.1-0.7-1.2-0.3-2.4-0.5-3.6-0.8-1.3-0.3-2.5-0.6-3.8-0.8h-0.3c-0.9-0.2-1.9-0.4-2.8-0.6-0.4-0.1-0.7-0.1-1.1-0.2-1.1-0.2-2.2-0.4-3.4-0.6-1.2-0.2-2.4-0.4-3.6-0.7l-5.4-0.9c-0.9-0.1-1.9-0.3-2.8-0.4-0.8-0.1-1.6-0.3-2.5-0.4-2.6-0.4-5.1-0.7-7.7-1-1.2-0.1-2.3-0.3-3.5-0.4h-0.4c-0.9-0.1-1.8-0.2-2.8-0.3-1.1-0.1-2.1-0.2-3.2-0.3-1.7-0.2-3.4-0.3-5.1-0.4-0.8-0.1-1.5-0.1-2.3-0.2-0.9-0.1-1.9-0.1-2.8-0.2-0.4 0-0.8 0-1.2-0.1-1.1-0.1-2.1-0.1-3.2-0.2-0.5 0-1-0.1-1.5-0.1-1.3-0.1-2.6-0.1-3.9-0.1-0.8 0-1.5-0.1-2.3-0.1-1.2 0-2.4 0-3.5-0.1h-13.9c-2.3 0-4.6 0.1-6.9 0.2-0.9 0-1.9 0.1-2.8 0.1-0.8 0-1.5 0.1-2.3 0.1-1.4 0.1-2.8 0.2-4.1 0.3-1.4 0.1-2.7 0.2-4.1 0.3-1.4 0.1-2.7 0.2-4.1 0.4-0.6 0-1.2 0.1-1.8 0.2l-7.8 0.9c-1.1 0.1-2.1 0.3-3.2 0.4-1 0.1-2.1 0.3-3.1 0.4-3.2 0.5-6.4 0.9-9.5 1.5-0.7 0.1-1.4 0.2-2.1 0.4-0.9 0.1-1.7 0.3-2.6 0.5-1.1 0.2-2.3 0.4-3.4 0.6-0.9 0.2-1.7 0.3-2.6 0.5-0.4 0.1-0.8 0.1-1.1 0.2-0.7 0.1-1.4 0.3-2.1 0.4-1.2 0.3-2.4 0.5-3.6 0.8-1.2 0.3-2.4 0.5-3.6 0.8-0.2 0-0.4 0.1-0.6 0.1-0.5 0.1-1 0.2-1.5 0.4-1.1 0.3-2.3 0.6-3.5 0.9-1.3 0.3-2.5 0.6-3.8 1-0.4 0.1-0.9 0.2-1.4 0.4-1.3 0.4-2.7 0.7-4 1.1-1.5 0.4-3 0.9-4.6 1.3-1 0.3-2.1 0.6-3.1 1-2.1 0.6-4.1 1.3-6.2 2-0.7 0.2-1.4 0.5-2.1 0.7-15-27.5-27.4-56.4-37-86.2-11.7-36.1-19.2-73.6-22.5-111.6-0.6-6.7-1-13.3-1.3-20-0.1-1.2-0.1-2.4-0.1-3.6-0.1-1.2-0.1-2.4-0.1-3.6 0-1.2-0.1-2.4-0.1-3.6 0-1.2-0.1-2.4-0.1-3.7 18.8-14 39.2-25.8 61-35 36.1-15.3 74.5-23 114.1-23 39.6 0 78 7.8 114.1 23 21.8 9.2 42.2 20.9 61 35v0.1c0 1 0 1.9-0.1 2.9 0 1.4-0.1 2.8-0.1 4.3 0 0.7 0 1.3-0.1 2-0.1 1.8-0.1 3.5-0.2 5.3-0.3 6.7-0.8 13.3-1.3 20-3.3 38.5-11 76.5-23 113-9.7 30.3-22.3 59.4-37.6 87.1z m136.8 90.9a342.27 342.27 0 0 0-96.3-73.2c29.1-53.7 49.5-112.8 59.4-175.5 12.8 17.1 23.4 35.6 31.8 55.5 13.8 32.7 20.8 67.4 20.8 103.2 0 31-5.3 61.3-15.7 90z" fill="#ffffff"></path><path d="M512 819.3c8.7 0 24.7 22.9 24.7 60.4s-16 60.4-24.7 60.4-24.7-22.9-24.7-60.4 16-60.4 24.7-60.4m0-20c-24.7 0-44.7 36-44.7 80.4 0 44.4 20 80.4 44.7 80.4s44.7-36 44.7-80.4c0-44.4-20-80.4-44.7-80.4z" fill="#E73B37"></path></svg>"""
@@ -96,65 +95,74 @@ def get_ai_analysis(api_key, hypothesis, metrics_dict, provider="OpenAI", conf_l
     except Exception as e:
         return f"Error connecting to AI: {str(e)}"
 
-def generate_smart_analysis(hypothesis, metrics, alpha_val):
+# --- NEW: COMPREHENSIVE AUTO-ANALYST (Rule-Based NLP) ---
+def generate_comprehensive_report(hypothesis, metrics, alpha_val):
     report = []
-    report.append("### Executive Summary")
-    if metrics['p_srm'] < 0.01:
-        report.append(f"CRITICAL FAILURE: Sample Ratio Mismatch (SRM) detected (p={metrics['p_srm']:.4f}). Results likely invalid.")
-        return "\n\n".join(report) 
-
-    if metrics['p_cr'] <= alpha_val:
-        if metrics['uplift_cr'] > 0:
-            status = "WINNING"
-            report.append(f"The Variation is a STATISTICALLY SIGNIFICANT WINNER (p < {alpha_val}).")
-        else:
-            status = "LOSING"
-            report.append(f"The Variation is a STATISTICALLY SIGNIFICANT LOSER (p < {alpha_val}).")
-    else:
-        status = "INCONCLUSIVE"
-        report.append(f"The test is INCONCLUSIVE (p={metrics['p_cr']:.4f}, which is > {alpha_val}).")
-
-    report.append("### Data Health & Validity")
-    if metrics['days'] < 7: report.append(f"Duration Warning: Test ran for {metrics['days']} days (too short).")
-    elif metrics['days'] < 14: report.append(f"Duration Caution: Test ran for {metrics['days']} days (watch for novelty effects).")
-    else: report.append(f"Duration: Healthy ({metrics['days']} days).")
-    report.append(f"SRM Check: Passed (p={metrics['p_srm']:.4f}).")
-
-    report.append("### Performance Breakdown")
-    report.append(f"- Conversion Rate: {'Improved' if metrics['uplift_cr'] > 0 else 'Decreased'} by {metrics['uplift_cr']:.2f}%.")
-    aov_text = "remained stable" if abs(metrics['uplift_aov']) < 1.0 else f"{'increased' if metrics['uplift_aov'] > 0 else 'decreased'} by {metrics['uplift_aov']:.2f}%"
-    report.append(f"- Average Order Value: {aov_text} (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
-
-    report.append("### Bayesian Risk Assessment")
-    report.append(f"- Probability to be Best: {metrics['prob_v_wins']:.1f}%")
-    report.append(f"- Risk of Switching: {metrics['loss_v']:.5f}%")
-
-    report.append("### Recommendation")
-    if metrics['uplift_rpv'] > 0:
-        financial_impact = (metrics['rpv_v'] - metrics['rpv_c']) * 100000
-        report.append(f"Financial Outlook: POSITIVE. Variation generates ${metrics['rpv_v'] - metrics['rpv_c']:.2f} more revenue per visitor.")
-    else:
-        report.append(f"Financial Outlook: NEGATIVE. Variation generates ${metrics['rpv_c'] - metrics['rpv_v']:.2f} less per visitor.")
     
-    report.append("### Visual Insights")
-    report.append("**1. Strategic Matrix:**")
-    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
-        report.append("The Variation dot is positioned to the bottom-right of the Control (Volume up, Value down).")
-    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
-        report.append("The Variation dot is positioned to the top-left (Volume down, Value up).")
-    elif metrics['uplift_cr'] > 0 and metrics['uplift_aov'] > 0:
-        report.append("The Variation dot is in the top-right (Green Zone). Win-Win.")
+    # 1. Executive Summary
+    sig = metrics['p_cr'] <= alpha_val
+    uplift = metrics['uplift_cr']
+    
+    if sig and uplift > 0:
+        headline = "WINNER: Significant Positive Result"
+        summary = f"The variation is statistically superior with {100-metrics['alpha']*100:.0f}% confidence."
+    elif sig and uplift < 0:
+        headline = "LOSER: Significant Negative Result"
+        summary = "The variation is performing significantly worse than the control."
     else:
-        report.append("The Variation dot is in the bottom-left (Red Zone). Loss-Loss.")
+        headline = "INCONCLUSIVE: No Clear Winner"
+        summary = f"We cannot reject the null hypothesis (p={metrics['p_cr']:.3f})."
 
-    report.append("\n**2. Bootstrap & CI:**")
-    if metrics['ci_low'] > 0:
-        report.append(f"The Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) is entirely positive.")
-    elif metrics['ci_high'] < 0:
-        report.append(f"The Confidence Interval is entirely negative.")
+    report.append(f"### {headline}")
+    report.append(summary)
+    
+    # 2. Deep Dive: Primary Metrics
+    report.append("#### Deep Dive: Primary Metrics")
+    report.append(f"- Conversion Rate: {metrics['uplift_cr']:.2f}% uplift.")
+    report.append(f"- Average Order Value: {metrics['uplift_aov']:.2f}% uplift (${metrics['aov_c']:.2f} vs ${metrics['aov_v']:.2f}).")
+    if metrics['uplift_rpv'] > 0:
+        report.append(f"- Revenue Per Visitor: POSITIVE. Each visitor is worth ${metrics['rpv_v'] - metrics['rpv_c']:.2f} more.")
     else:
-        report.append(f"The Confidence Interval ({metrics['ci_low']:.2f}% to {metrics['ci_high']:.2f}%) crosses zero, indicating uncertainty.")
-        
+        report.append(f"- Revenue Per Visitor: NEGATIVE. Each visitor is worth ${metrics['rpv_c'] - metrics['rpv_v']:.2f} less.")
+
+    # 3. Deep Dive: Secondary Metrics
+    report.append("#### Deep Dive: Product Velocity")
+    if metrics['uplift_apo'] > 0:
+        report.append(f"- Basket Building: POSITIVE. Users are adding {metrics['uplift_apo']:.2f}% more items per order.")
+    else:
+        report.append(f"- Basket Building: NEGATIVE. Users are adding {abs(metrics['uplift_apo']):.2f}% fewer items per order.")
+
+    # 4. Statistical Robustness
+    report.append("#### Statistical Robustness")
+    
+    if metrics['p_cr'] < metrics['adjusted_alpha']:
+        report.append(f"- Sequential Testing: ROBUST. Result remains significant after peeking penalty (Adj Alpha: {metrics['adjusted_alpha']:.5f}).")
+    else:
+        report.append("- Sequential Testing: CAUTION. Frequent peeking increases false positive risk.")
+
+    report.append(f"- Bayesian Probability: {metrics['prob_v_wins']:.1f}% chance variation is best.")
+    if metrics['loss_v'] < 0.01:
+        report.append("- Risk: LOW. The expected loss from switching is negligible.")
+    else:
+        report.append(f"- Risk: MODERATE/HIGH. Potential loss: {metrics['loss_v']:.4f}.")
+
+    width = metrics['ci_high'] - metrics['ci_low']
+    if width < 5.0:
+        report.append(f"- Bootstrap Confidence: PRECISE. Narrow interval ({width:.2f}%) indicates stable behavior.")
+    else:
+        report.append(f"- Bootstrap Confidence: VOLATILE. Wide interval ({width:.2f}%) indicates high variance.")
+
+    # 5. Strategic Conclusion
+    report.append("#### Strategic Conclusion")
+    if metrics['uplift_cr'] > 0 and metrics['uplift_aov'] > 0:
+        report.append("Growth Engine: Efficient win driving both volume and value.")
+    elif metrics['uplift_cr'] > 0 and metrics['uplift_aov'] < 0:
+        report.append("Discount Effect: Driving volume at expense of value.")
+    elif metrics['uplift_cr'] < 0 and metrics['uplift_aov'] > 0:
+        report.append("Premium Shift: Higher value customers, but losing volume.")
+    else:
+        report.append("Negative Friction: Both conversion and value are down.")
+
     return "\n\n".join(report)
 
 def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
@@ -274,18 +282,51 @@ st.sidebar.markdown("---")
 # Planning
 st.sidebar.markdown(f"""<div style="display: flex; align-items: center; margin-bottom: 10px;">{ICON_CALENDAR}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Experiment Planning</h2></div>""", unsafe_allow_html=True)
 with st.sidebar.expander("Sample Size Calculator", expanded=False):
-    p_traffic = st.number_input("Traffic (Last 28 Days)", step=1000, key="p_traffic")
-    p_cr = st.number_input("Baseline Conversion Rate (%)", step=0.1, key="p_base_cr")
-    p_mde = st.number_input("Min Detectable Effect (%)", step=0.5, key="p_mde")
+    st.caption(f"Plan required traffic using {confidence_level} confidence.")
+    
+    plan_traffic_28d = st.number_input("Traffic (Last 28 Days)", step=1000, key="p_traffic")
+    plan_base_cr = st.number_input("Baseline Conversion Rate (%)", step=0.1, key="p_base_cr")
+    plan_base_aov = st.number_input("Baseline AOV ($)", step=1.0, key="p_base_aov")
+    plan_mde = st.number_input("Min Detectable Effect (%)", step=0.5, key="p_mde")
+    
+    volatility = st.selectbox(
+        "Revenue Variance", 
+        ["Low (Subscription)", "Medium (Standard E-com)", "High (Whales/B2B)"],
+        index=1,
+        key="p_vol"
+    )
+    
+    sd_multiplier = 1.0 if "Low" in volatility else (2.0 if "Medium" in volatility else 3.0)
+
     if st.button("Calculate Duration"):
-        daily = p_traffic / 28
-        e_cr = proportion_effectsize(p_cr/100, (p_cr/100)*(1+p_mde/100))
-        n_cr = NormalIndPower().solve_power(effect_size=e_cr, alpha=alpha, power=0.8, ratio=1)
-        st.info(f"Need {int((n_cr*2)/daily)} days")
+        daily_traffic = plan_traffic_28d / 28
+        p1 = plan_base_cr / 100
+        p2 = p1 * (1 + plan_mde/100)
+        effect_size_cr = proportion_effectsize(p1, p2)
+        n_cr = NormalIndPower().solve_power(effect_size=effect_size_cr, alpha=alpha, power=0.8, ratio=1)
+        
+        mean_1 = plan_base_aov
+        mean_2 = plan_base_aov * (1 + plan_mde/100)
+        est_sd = plan_base_aov * sd_multiplier
+        effect_size_rpv = (mean_2 - mean_1) / est_sd
+        n_rpv = TTestIndPower().solve_power(effect_size=effect_size_rpv, alpha=alpha, power=0.8, ratio=1)
+        
+        n_rpv_visitors = n_rpv / (plan_base_cr / 100)
+        days_cr = (n_cr * 2) / daily_traffic 
+        days_rpv = (n_rpv_visitors * 2) / daily_traffic
+
+        st.markdown("---")
+        st.write(f"**Daily Traffic:** {int(daily_traffic):,} users")
+        st.info(f"**Conversion Rate:**\nNeed {int(days_cr)} days\n({int(n_cr):,} users/group)")
+        
+        if days_rpv > 60:
+            st.error(f"**Revenue (RPV):**\nNeed {int(days_rpv)} days\n({int(n_rpv_visitors):,} users/group)")
+        else:
+            st.warning(f"**Revenue (RPV):**\nNeed {int(days_rpv)} days\n({int(n_rpv_visitors):,} users/group)")
 
 st.sidebar.markdown("---")
 
-# Enter Results
+# Enter Results (No default values to avoid warnings)
 st.sidebar.markdown(f"""<div style="display: flex; align-items: center; margin-bottom: 10px;">{ICON_TROPHY}<h2 style="display: inline; font-size: 1.5rem; margin-left: 5px;">Enter Results</h2></div>""", unsafe_allow_html=True)
 st.sidebar.caption("Input your experiment data below.")
 st.sidebar.subheader("Control Group")
@@ -328,7 +369,6 @@ z_stat, p_val = proportions_ztest([conv_control, conv_variation], [users_control
 srm_chi, p_srm = perform_srm_test([users_control, users_variation])
 
 # Dashboard UI
-st.title("A/B Test Analyzer v1.7.3")
 render_header(ICON_BAR_CHART, "Results Summary")
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Conversion Rate", f"{rate_v*100:.2f}%", f"{up_cr:+.2f}%")
@@ -399,10 +439,14 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
 ])
 
 with tab1:
-    st.markdown("### Smart Executive Summary")
-    st.info("Generated instantly using statistical rules (No API Key required).")
+    st.markdown("### Auto-Analyst Report")
+    st.info("Generated instantly using rule-based logic (No API Key required).")
     user_hypothesis = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
-    if st.button("Generate Smart Analysis"):
+    
+    peeks_for_report = 1 
+    adj_alpha = alpha * np.log(1 + (np.e - 1) / peeks_for_report)
+
+    if st.button("Generate Report"):
         ci_low, ci_high = proportion_confint(conv_variation, users_variation, alpha=alpha, method='normal')
         diff_ci_low = (ci_low - rate_c) * 100
         diff_ci_high = (ci_high - rate_c) * 100
@@ -413,9 +457,10 @@ with tab1:
             "cr_c": rate_c*100, "cr_v": rate_v*100, "uplift_cr": up_cr, "p_cr": p_val,
             "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": up_aov, "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": up_rpv,
             "ci_low": diff_ci_low, "ci_high": diff_ci_high, "uplift_apo": up_apo,
-            "prob_v_wins": prob_v_wins * 100, "loss_v": loss_v * 100, "loss_c": loss_c * 100, "alpha": alpha
+            "prob_v_wins": prob_v_wins * 100, "loss_v": loss_v * 100, "loss_c": loss_c * 100, "alpha": alpha,
+            "adjusted_alpha": adj_alpha
         }
-        smart_result = generate_smart_analysis(user_hypothesis, metrics_payload, alpha)
+        smart_result = generate_comprehensive_report(user_hypothesis, metrics_payload, alpha)
         st.markdown("---")
         st.markdown(smart_result)
 
