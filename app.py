@@ -383,7 +383,7 @@ st.sidebar.markdown(
 # --- Save & Load ---
 st.sidebar.markdown(
     f"""<div style="display:flex;align-items:center;margin-top:10px;">{ICON_UPLOAD}
-    <span style="font-size:1rem;font-weight:600;margin-left:5px;">Save & Load Analysis</span></div>""",
+    <span style="font-size:1rem;font-weight:600;margin-left:5px; margin-bottom:5px;">Save & Load Analysis</span></div>""",
     unsafe_allow_html=True,
 )
 
