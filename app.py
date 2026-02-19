@@ -12,7 +12,7 @@ import openai
 # PAGE CONFIGURATION
 # -----------------------------------------------
 st.set_page_config(
-    page_title="Enterprise A/B Test Analyzer",
+    page_title="A/B Test Analyzer v1.8.0c",
     layout="wide",
     initial_sidebar_state="expanded"
 )
