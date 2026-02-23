@@ -12,7 +12,7 @@ import openai
 # PAGE CONFIGURATION
 # -----------------------------------------------
 st.set_page_config(
-    page_title="A/B Test Analyzer v1.8.0c",
+    page_title="A/B Test Analyzer v1.8.1c",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -154,12 +154,54 @@ def get_ai_analysis(api_key: str, hypothesis: str, metrics: dict, provider: str 
     base_url = "https://api.deepseek.com" if provider == "DeepSeek" else "https://api.openai.com/v1"
     model_name = "deepseek-reasoner" if provider == "DeepSeek" else "gpt-4o"
 
-    prompt = f"""Analyze this A/B test result.
-Configuration: Confidence Level: {conf_level}
-Hypothesis: "{hypothesis}"
-Data: {metrics}
-Task: Provide an Executive Summary, Trade-off Analysis, Risk Assessment, and Recommendation.
-Format your response in Markdown."""
+    prompt = f"""You are an expert CRO analyst writing a structured A/B test report for a business stakeholder.
+
+EXPERIMENT CONFIGURATION
+- Confidence Level: {conf_level}
+- Hypothesis: "{hypothesis}"
+
+EXPERIMENT DATA
+{metrics}
+
+INSTRUCTIONS
+Write the report in Markdown using exactly the sections below, in this order. Do not add a title or restate the hypothesis as a heading — instead, weave the hypothesis naturally into the opening sentence of the Executive Summary.
+
+---
+
+## Executive Summary
+One paragraph. Open by referencing what was tested (from the hypothesis) and immediately state whether the experiment won, lost, or was inconclusive. Include the key conversion rate uplift, statistical significance, and financial impact per visitor in this paragraph.
+
+## Trade-off Analysis
+Analyse the relationship between Conversion Rate, Average Order Value, and Revenue Per Visitor. Explain whether the variation is a clean win, a volume-vs-value trade-off, or a net negative, and what that means for the business.
+
+## Risk Assessment
+Assess the risk of shipping this change using the Bayesian probability and expected loss figures. Factor in test duration and SRM status. Be direct about whether the data is trustworthy.
+
+## Visual Insights
+
+### Strategic Matrix
+One paragraph explaining what the scatter plot of CR vs AOV reveals. Describe where the Variation dot sits relative to the Control dot (top-right = growth, bottom-right = volume at cost of value, top-left = premium shift, bottom-left = loss) and what that quadrant means strategically.
+
+### Product Metrics
+One paragraph interpreting the bar charts for Avg Products per Order and Avg Products per User. Explain whether basket size is growing or shrinking and what that implies about user behaviour.
+
+### Revenue Charts
+One paragraph interpreting the Revenue Per Visitor and Average Order Value bar charts side by side. Explain what the combination of these two metrics tells us about the revenue quality of the variation.
+
+### CR Comparison
+One paragraph interpreting the conversion rate bar chart. Put the absolute rates in context — is a {metrics.get('uplift_cr', 0):.2f}% uplift meaningful given the base rate and sample size?
+
+### Bayesian Posterior
+One paragraph explaining the overlapping Beta distribution curves. Describe how much the two distributions overlap, what that means for certainty, and how to read the probability that the variation is best.
+
+### Bootstrap Distribution
+One paragraph explaining the histogram of resampled CR differences. Describe where the distribution is centred, whether the confidence interval bounds cross zero, and what that means for decision-making.
+
+### Box Plot
+One paragraph interpreting the box plots. Comment on the median, spread (IQR), and any outliers for each group. Explain what a wide or narrow box tells us about the stability of the conversion rate.
+
+## Recommendation
+One clear, direct paragraph. State ship / do not ship / run longer, with the single most important reason. End with one concrete next step."""
 
     try:
         client = openai.OpenAI(api_key=api_key, base_url=base_url)
@@ -383,7 +425,7 @@ st.sidebar.markdown(
 # --- Save & Load ---
 st.sidebar.markdown(
     f"""<div style="display:flex;align-items:center;margin-top:10px;">{ICON_UPLOAD}
-    <span style="font-size:1rem;font-weight:600;margin-left:5px; margin-bottom:5px;">Save & Load Analysis</span></div>""",
+    <span style="font-size:1rem;font-weight:600;margin-left:5px;">Save & Load Analysis</span></div>""",
     unsafe_allow_html=True,
 )
 
@@ -554,7 +596,7 @@ srm_stat, p_value_srm = perform_srm_test([users_control, users_variation])
 # -----------------------------------------------
 # MAIN DASHBOARD
 # -----------------------------------------------
-st.title("A/B Test Analyzer v1.8.0c")
+st.title("Enterprise A/B Test Analyzer")
 
 render_header(ICON_BAR_CHART, "Results Summary")
 
@@ -726,9 +768,8 @@ with tab2:
                 api_key_input, user_hypothesis_ai, metrics_payload,
                 provider=provider_name, conf_level=confidence_level,
             )
-        st.markdown(f"### Analysis: {user_hypothesis_ai or 'A/B Test'}")
         st.markdown("---")
-        st.markdown(ai_result)  # FIX: Result is now displayed
+        st.markdown(ai_result)
 
 # --- TAB 3: STOPPING & SEQUENTIAL ---
 with tab3:
