@@ -1,49 +1,40 @@
 import streamlit as st
 import numpy as np
 import json
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
-from scipy.stats import beta, chisquare, mannwhitneyu, norm
+from scipy.stats import beta, chisquare, mannwhitneyu, chi2_contingency
 from statsmodels.stats.proportion import proportions_ztest, proportion_confint, proportion_effectsize
 from statsmodels.stats.power import NormalIndPower, TTestIndPower
+from statsmodels.stats.multitest import multipletests
 import openai
 
 # -----------------------------------------------
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # -----------------------------------------------
-st.set_page_config(
-    page_title="Enterprise A/B Test Analyzer",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-matplotlib.use("Agg")  # Prevents threading crashes in Streamlit
+st.set_page_config(page_title="Enterprise A/B Test Analyzer", layout="wide", initial_sidebar_state="expanded")
+matplotlib.use("Agg")
 
 # -----------------------------------------------
 # SVG ICONS
 # -----------------------------------------------
-ICON_SETTINGS = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 512m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M512 306.8c27.7 0 54.6 5.4 79.8 16.1 24.4 10.3 46.4 25.1 65.2 44s33.6 40.8 44 65.2c10.7 25.3 16.1 52.1 16.1 79.8 0 27.7-5.4 54.6-16.1 79.8-10.3 24.4-25.1 46.4-44 65.2-18.8 18.8-40.8 33.6-65.2 44-25.3 10.7-52.1 16.1-79.8 16.1-27.7 0-54.6-5.4-79.8-16.1-24.4-10.3-46.4-25.1-65.2-44-18.8-18.8-33.6-40.8-44-65.2-10.7-25.3-16.1-52.1-16.1-79.8 0-27.7 5.4-54.6 16.1-79.8 10.3-24.4 25.1-46.4 44-65.2s40.8-33.6 65.2-44c25.2-10.6 52.1-16.1 79.8-16.1m0-22c-125.4 0-227.1 101.7-227.1 227.1S386.6 739.1 512 739.1c125.4 0 227.1-101.7 227.1-227.1S637.4 284.8 512 284.8z" fill="#ffffff"/><path d="M544.2 107.3l34.1 92.3 7.4 19.9 20.2 6.6c10.3 3.4 32.1 12.9 43.4 18.1l18.7 8.6 18.6-8.9 87.9-41.8 46.4 46.5-41.2 89.4-8.9 19.3 9.6 19c6.8 13.4 12.6 27.5 17.4 41.9l6.7 20.5 20.3 7.2 91.7 32.6v65.7l-92.3 34.1-19.9 7.4-6.6 20.2c-4.7 14.4-10.6 28.4-17.4 41.9l-9.8 19.3 9.3 19.5 41.8 87.9-46.5 46.5-89.1-41.3-19.3-8.9-19 9.6c-13.4 6.8-27.5 12.6-41.9 17.4l-20.5 6.7-7.2 20.3-32.6 91.7h-65.7l-34.1-92.3-7.4-19.9-20.2-6.6c-10.3-3.4-32.1-12.9-43.4-18.1L356 771l-18.6 8.9-87.9 41.8-46.4-46.5 41.2-89.3 8.9-19.3-9.6-19c-6.8-13.4-12.6-27.5-17.4-41.9l-6.7-20.5-20.3-7.2-91.7-32.6v-65.7l92.3-34.1 19.9-7.4 6.6-20.2c3.4-10.3 12.9-32.1 18.1-43.4l8.6-18.7-8.9-18.6-41.8-87.9 46.4-46.4 89.3 41.2 19.3 8.9 19-9.6c13.4-6.8 27.5-12.6 41.9-17.4l20.5-6.7 7.2-20.3 32.6-91.7h65.7m30.7-44.1H447.4l-43 121c-16.6 5.5-32.7 12.1-48.1 19.9l-117.2-54-90.1 90.1 55.2 116s-14.5 31.4-19.9 48.1l-121 44.7v127.4l121 43c5.5 16.6 12.1 32.6 19.9 48l-54 117.2 90.1 90.1 116-55.2s31.4 14.5 48.1 19.9l44.7 121h127.4l43-121c16.6-5.5 32.6-12.1 48-19.9l117.2 54 90.1-90.1-55.2-116c7.8-15.4 14.5-31.4 19.9-48l121-44.7V447.4l-121-43c-5.5-16.6-12.1-32.6-19.9-48l54-117.2-90.1-90.1-115.9 55.2s-31.5-14.5-48.1-19.9L574.9 63.3z" fill="#ffffff"/></svg>"""
-
-ICON_CALENDAR = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M716 190.9v-67.8h-44v67.8H352v-67.8h-44v67.8H92v710h840v-710H716z m-580 44h172v69.2h44v-69.2h320v69.2h44v-69.2h172v151.3H136V234.9z m752 622H136V402.2h752v454.7z" fill="#ffffff"/><path d="M319 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M510 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M701.1 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M319 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M510 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M701.1 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/></svg>"""
-
+ICON_SETTINGS  = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 512m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M512 306.8c27.7 0 54.6 5.4 79.8 16.1 24.4 10.3 46.4 25.1 65.2 44s33.6 40.8 44 65.2c10.7 25.3 16.1 52.1 16.1 79.8 0 27.7-5.4 54.6-16.1 79.8-10.3 24.4-25.1 46.4-44 65.2-18.8 18.8-40.8 33.6-65.2 44-25.3 10.7-52.1 16.1-79.8 16.1-27.7 0-54.6-5.4-79.8-16.1-24.4-10.3-46.4-25.1-65.2-44-18.8-18.8-33.6-40.8-44-65.2-10.7-25.3-16.1-52.1-16.1-79.8 0-27.7 5.4-54.6 16.1-79.8 10.3-24.4 25.1-46.4 44-65.2s40.8-33.6 65.2-44c25.2-10.6 52.1-16.1 79.8-16.1m0-22c-125.4 0-227.1 101.7-227.1 227.1S386.6 739.1 512 739.1c125.4 0 227.1-101.7 227.1-227.1S637.4 284.8 512 284.8z" fill="#ffffff"/><path d="M544.2 107.3l34.1 92.3 7.4 19.9 20.2 6.6c10.3 3.4 32.1 12.9 43.4 18.1l18.7 8.6 18.6-8.9 87.9-41.8 46.4 46.5-41.2 89.4-8.9 19.3 9.6 19c6.8 13.4 12.6 27.5 17.4 41.9l6.7 20.5 20.3 7.2 91.7 32.6v65.7l-92.3 34.1-19.9 7.4-6.6 20.2c-4.7 14.4-10.6 28.4-17.4 41.9l-9.8 19.3 9.3 19.5 41.8 87.9-46.5 46.5-89.1-41.3-19.3-8.9-19 9.6c-13.4 6.8-27.5 12.6-41.9 17.4l-20.5 6.7-7.2 20.3-32.6 91.7h-65.7l-34.1-92.3-7.4-19.9-20.2-6.6c-10.3-3.4-32.1-12.9-43.4-18.1L356 771l-18.6 8.9-87.9 41.8-46.4-46.5 41.2-89.3 8.9-19.3-9.6-19c-6.8-13.4-12.6-27.5-17.4-41.9l-6.7-20.5-20.3-7.2-91.7-32.6v-65.7l92.3-34.1 19.9-7.4 6.6-20.2c3.4-10.3 12.9-32.1 18.1-43.4l8.6-18.7-8.9-18.6-41.8-87.9 46.4-46.4 89.3 41.2 19.3 8.9 19-9.6c13.4-6.8 27.5-12.6 41.9-17.4l20.5-6.7 7.2-20.3 32.6-91.7h65.7m30.7-44.1H447.4l-43 121c-16.6 5.5-32.7 12.1-48.1 19.9l-117.2-54-90.1 90.1 55.2 116s-14.5 31.4-19.9 48.1l-121 44.7v127.4l121 43c5.5 16.6 12.1 32.6 19.9 48l-54 117.2 90.1 90.1 116-55.2s31.4 14.5 48.1 19.9l44.7 121h127.4l43-121c16.6-5.5 32.6-12.1 48-19.9l117.2 54 90.1-90.1-55.2-116c7.8-15.4 14.5-31.4 19.9-48l121-44.7V447.4l-121-43c-5.5-16.6-12.1-32.6-19.9-48l54-117.2-90.1-90.1-115.9 55.2s-31.5-14.5-48.1-19.9L574.9 63.3z" fill="#ffffff"/></svg>"""
+ICON_CALENDAR  = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M716 190.9v-67.8h-44v67.8H352v-67.8h-44v67.8H92v710h840v-710H716z m-580 44h172v69.2h44v-69.2h320v69.2h44v-69.2h172v151.3H136V234.9z m752 622H136V402.2h752v454.7z" fill="#ffffff"/><path d="M319 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M510 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M701.1 565.7m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M319 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M510 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/><path d="M701.1 693.4m-33 0a33 33 0 1 0 66 0 33 33 0 1 0-66 0Z" fill="#E73B37"/></svg>"""
 ICON_BAR_CHART = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M928.1 881v44H95.9V99h44v782z" fill="#ffffff"/><path d="M352 435.7v403.4H204V435.7h148m22-22H182v447.4h192V413.7zM608 307.9v531.2H460V307.9h148m22-22H438v575.2h192V285.9z" fill="#ffffff"/><path d="M866.1 177.3v663.9H714V177.3h152.1m20-20H694v703.9h192V157.3h0.1z" fill="#E73B37"/></svg>"""
-
-ICON_PIE = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M429.9 186.7v406.4h407.5c-4 34.1-12.8 67.3-26.2 99.1-18.4 43.6-44.8 82.7-78.5 116.3-33.6 33.6-72.8 60-116.4 78.4-45.1 19.1-93 28.7-142.5 28.7-49.4 0-97.4-9.7-142.5-28.7-43.6-18.4-82.7-44.8-116.4-78.4-33.6-33.6-60-72.7-78.4-116.3-19.1-45.1-28.7-93-28.7-142.4s9.7-97.3 28.7-142.4c18.4-43.6 44.8-82.7 78.4-116.3 33.6-33.6 72.8-60 116.4-78.4 31.7-13.2 64.7-21.9 98.6-26m44-46.6c-226.4 0-410 183.5-410 409.8s183.6 409.8 410 409.8 410-183.5 410-409.8v-0.8h-410v-409z" fill="#ffffff"/><path d="M566.1 80.5c43.7 1.7 86.4 10.6 127 26.4 44 17.1 84.2 41.8 119.6 73.5 71.7 64.1 117.4 151.7 128.7 246.7 1.2 9.9 2 20 2.4 30.2H566.1V80.5m-16-16.3v409h410c0-16.3-1-32.3-2.9-48.1C933.1 221.9 760 64.2 550.1 64.2zM264.7 770.4c-23.1-23.1-42.3-49.1-57.3-77.7l-14.7 6.5c35.7 68.2 94 122.7 165 153.5l4.3-15.6c-36.3-16-69.1-38.4-97.3-66.7z" fill="#E73B37"/></svg>"""
-
-ICON_BRAIN = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 301.2m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M511.8 256.6c24.4 0 44.2 19.8 44.2 44.2S536.2 345 511.8 345s-44.2-19.8-44.2-44.2 19.9-44.2 44.2-44.2m0-20c-35.5 0-64.2 28.7-64.2 64.2s28.7 64.2 64.2 64.2 64.2-28.7 64.2-64.2-28.7-64.2-64.2-64.2z" fill="#E73B37"/><path d="M730.7 529.5c0.4-8.7 0.6-17.4 0.6-26.2 0-179.6-86.1-339.1-219.3-439.5-133.1 100.4-219.2 259.9-219.2 439.5 0 8.8 0.2 17.5 0.6 26.1-56 56-90.6 133.3-90.6 218.7 0 61.7 18 119.1 49.1 167.3 30.3-49.8 74.7-90.1 127.7-115.3 39-18.6 82.7-29 128.8-29 48.3 0 93.9 11.4 134.3 31.7 52.5 26.3 96.3 67.7 125.6 118.4 33.4-49.4 52.9-108.9 52.9-173.1 0-85.4-34.6-162.6-90.5-218.6z" fill="#ffffff"/><path d="M512 819.3c8.7 0 24.7 22.9 24.7 60.4s-16 60.4-24.7 60.4-24.7-22.9-24.7-60.4 16-60.4 24.7-60.4m0-20c-24.7 0-44.7 36-44.7 80.4 0 44.4 20 80.4 44.7 80.4s44.7-36 44.7-80.4c0-44.4-20-80.4-44.7-80.4z" fill="#E73B37"/></svg>"""
-
-ICON_UPLOAD = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M220.5 245.4c-32.8 32.8-55.1 73.2-65.2 117.3h16.5c18.8-75.3 75.1-135.9 148-160.7v-16.9c-37.1 11.6-71 32-99.3 60.3z" fill="#E73B37"/><path d="M959.9 540.8c0 113.6-92.1 205.8-205.7 205.9H590.9v-44h163.3c43.2 0 83.8-16.9 114.3-47.4 30.6-30.6 47.4-71.2 47.4-114.5 0-43.2-16.8-83.9-47.4-114.4S797.2 379 754 379c-11.5 0-22.8 1.2-33.8 3.5-15 3.2-29.4 8.4-42.8 15.7-1-15.4-3.3-30.7-6.8-45.6-3.6-15.6-8.6-30.8-14.9-45.7-14.4-33.9-34.9-64.4-61.1-90.6-26.2-26.2-56.6-46.7-90.6-61.1-35.1-14.8-72.4-22.4-110.9-22.4s-75.8 7.5-110.9 22.4c-33.9 14.3-64.4 34.9-90.6 61.1-26.2 26.2-46.7 56.7-61.1 90.6-14.9 35.1-22.4 72.4-22.4 110.9s7.5 75.8 22.4 110.9c14.3 33.9 34.9 64.4 61.1 90.6 26.2 26.2 56.7 46.7 90.6 61.1 35.1 14.8 72.4 22.4 110.9 22.4h39.7v44h-41C210.7 746 64.1 599 64.1 417.7c0-181.7 147.3-329 329-329 154.6 0 284.3 106.6 319.5 250.3 13.4-2.7 27.2-4.2 41.4-4.2 113.7 0.1 205.9 92.2 205.9 205.9z" fill="#ffffff"/><path d="M692.9 636.1h-22.6L519.8 485.6v449.6h-16V485.8L353.4 636.1h-22.6l181-181z" fill="#E73B37"/></svg>"""
-
-ICON_TROPHY = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M828.5 180.1h-9.9v-54.7h23.5v-44H182v44h23v54.7h-9.5C123.2 180.1 64 239.2 64 311.5v0.1c0 72.3 59.2 131.5 131.5 131.5h9.6c0 1.3 0.1 2.5 0.1 3.7 0.5 17.7 2.7 35.4 6.2 52.5 17.8 85.7 71.8 160 148.3 204 4.8 2.8 9.8 5.4 14.7 7.9 15.3 7.7 31.2 14.1 47.4 19.2 3.4 1 6.8 2 10.2 2.9v165.2H250.4v44h511.9v-44H591.9V733.4c3.7-1 7.3-2.1 10.9-3.2 16.2-5.1 32.2-11.6 47.4-19.4 5-2.5 10-5.3 14.8-8.1 75.6-43.9 129.2-117.8 147-202.7 3.6-17.2 5.8-34.9 6.3-52.4 0.1-1.5 0.1-3 0.1-4.5h10c72.3 0 131.5-59.2 131.5-131.5v-0.1c0.1-72.3-59.1-131.4-131.4-131.4zM205 399.2h-9.5c-23.2 0-45.1-9.1-61.7-25.7s-25.7-38.5-25.7-61.7v-0.1c0-23.2 9.1-45.2 25.7-61.7 16.6-16.6 38.5-25.7 61.7-25.7h9.5v174.9z m370.9 499.4h-128V737.3c20.9 4.5 42.3 6.8 63.9 6.8 21.7 0 43.1-2.3 64.1-6.8v161.3z m198.7-461.4c0 2.9 0 5.9-0.2 8.9-0.5 15-2.3 30.1-5.4 44.9-15.3 72.7-61.2 136-126.1 173.7-4.1 2.4-8.4 4.7-12.7 6.9-13 6.6-26.7 12.2-40.6 16.6-25.2 7.9-51.4 11.9-77.9 11.9-26.2 0-52.2-3.9-77.1-11.6-13.9-4.3-27.5-9.8-40.6-16.4-4.2-2.1-8.5-4.4-12.6-6.8-65.4-37.8-111.7-101.5-126.9-174.8-3.1-14.7-4.9-29.8-5.3-45-0.1-2.7-0.1-5.5-0.1-8.2v-312h525.6v311.9zM916 311.7c0 23.2-9.1 45.2-25.7 61.7-16.6 16.6-38.5 25.7-61.7 25.7h-9.9v-175h9.9c23.2 0 45.1 9.1 61.7 25.7s25.7 38.5 25.7 61.7v0.2z" fill="#ffffff"/><path d="M555.4 659.6l-4.8-19.4c0.3-0.1 26.5-6.8 55.4-23.5 37.8-21.9 62-49.7 72-82.7l19.1 5.8c-11.4 37.6-39.6 70.3-81.6 94.5-31.2 18-58.9 25-60.1 25.3z" fill="#E73B37"/></svg>"""
+ICON_PIE       = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M429.9 186.7v406.4h407.5c-4 34.1-12.8 67.3-26.2 99.1-18.4 43.6-44.8 82.7-78.5 116.3-33.6 33.6-72.8 60-116.4 78.4-45.1 19.1-93 28.7-142.5 28.7-49.4 0-97.4-9.7-142.5-28.7-43.6-18.4-82.7-44.8-116.4-78.4-33.6-33.6-60-72.7-78.4-116.3-19.1-45.1-28.7-93-28.7-142.4s9.7-97.3 28.7-142.4c18.4-43.6 44.8-82.7 78.4-116.3 33.6-33.6 72.8-60 116.4-78.4 31.7-13.2 64.7-21.9 98.6-26m44-46.6c-226.4 0-410 183.5-410 409.8s183.6 409.8 410 409.8 410-183.5 410-409.8v-0.8h-410v-409z" fill="#ffffff"/><path d="M566.1 80.5c43.7 1.7 86.4 10.6 127 26.4 44 17.1 84.2 41.8 119.6 73.5 71.7 64.1 117.4 151.7 128.7 246.7 1.2 9.9 2 20 2.4 30.2H566.1V80.5m-16-16.3v409h410c0-16.3-1-32.3-2.9-48.1C933.1 221.9 760 64.2 550.1 64.2zM264.7 770.4c-23.1-23.1-42.3-49.1-57.3-77.7l-14.7 6.5c35.7 68.2 94 122.7 165 153.5l4.3-15.6c-36.3-16-69.1-38.4-97.3-66.7z" fill="#E73B37"/></svg>"""
+ICON_BRAIN     = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 301.2m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M511.8 256.6c24.4 0 44.2 19.8 44.2 44.2S536.2 345 511.8 345s-44.2-19.8-44.2-44.2 19.9-44.2 44.2-44.2m0-20c-35.5 0-64.2 28.7-64.2 64.2s28.7 64.2 64.2 64.2 64.2-28.7 64.2-64.2-28.7-64.2-64.2-64.2z" fill="#E73B37"/><path d="M730.7 529.5c0.4-8.7 0.6-17.4 0.6-26.2 0-179.6-86.1-339.1-219.3-439.5-133.1 100.4-219.2 259.9-219.2 439.5 0 8.8 0.2 17.5 0.6 26.1-56 56-90.6 133.3-90.6 218.7 0 61.7 18 119.1 49.1 167.3 30.3-49.8 74.7-90.1 127.7-115.3 39-18.6 82.7-29 128.8-29 48.3 0 93.9 11.4 134.3 31.7 52.5 26.3 96.3 67.7 125.6 118.4 33.4-49.4 52.9-108.9 52.9-173.1 0-85.4-34.6-162.6-90.5-218.6z" fill="#ffffff"/><path d="M512 819.3c8.7 0 24.7 22.9 24.7 60.4s-16 60.4-24.7 60.4-24.7-22.9-24.7-60.4 16-60.4 24.7-60.4m0-20c-24.7 0-44.7 36-44.7 80.4 0 44.4 20 80.4 44.7 80.4s44.7-36 44.7-80.4c0-44.4-20-80.4-44.7-80.4z" fill="#E73B37"/></svg>"""
+ICON_UPLOAD    = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M220.5 245.4c-32.8 32.8-55.1 73.2-65.2 117.3h16.5c18.8-75.3 75.1-135.9 148-160.7v-16.9c-37.1 11.6-71 32-99.3 60.3z" fill="#E73B37"/><path d="M959.9 540.8c0 113.6-92.1 205.8-205.7 205.9H590.9v-44h163.3c43.2 0 83.8-16.9 114.3-47.4 30.6-30.6 47.4-71.2 47.4-114.5 0-43.2-16.8-83.9-47.4-114.4S797.2 379 754 379c-11.5 0-22.8 1.2-33.8 3.5-15 3.2-29.4 8.4-42.8 15.7-1-15.4-3.3-30.7-6.8-45.6-3.6-15.6-8.6-30.8-14.9-45.7-14.4-33.9-34.9-64.4-61.1-90.6-26.2-26.2-56.6-46.7-90.6-61.1-35.1-14.8-72.4-22.4-110.9-22.4s-75.8 7.5-110.9 22.4c-33.9 14.3-64.4 34.9-90.6 61.1-26.2 26.2-46.7 56.7-61.1 90.6-14.9 35.1-22.4 72.4-22.4 110.9s7.5 75.8 22.4 110.9c14.3 33.9 34.9 64.4 61.1 90.6 26.2 26.2 56.7 46.7 90.6 61.1 35.1 14.8 72.4 22.4 110.9 22.4h39.7v44h-41C210.7 746 64.1 599 64.1 417.7c0-181.7 147.3-329 329-329 154.6 0 284.3 106.6 319.5 250.3 13.4-2.7 27.2-4.2 41.4-4.2 113.7 0.1 205.9 92.2 205.9 205.9z" fill="#ffffff"/><path d="M692.9 636.1h-22.6L519.8 485.6v449.6h-16V485.8L353.4 636.1h-22.6l181-181z" fill="#E73B37"/></svg>"""
+ICON_TROPHY    = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M828.5 180.1h-9.9v-54.7h23.5v-44H182v44h23v54.7h-9.5C123.2 180.1 64 239.2 64 311.5v0.1c0 72.3 59.2 131.5 131.5 131.5h9.6c0 1.3 0.1 2.5 0.1 3.7 0.5 17.7 2.7 35.4 6.2 52.5 17.8 85.7 71.8 160 148.3 204 4.8 2.8 9.8 5.4 14.7 7.9 15.3 7.7 31.2 14.1 47.4 19.2 3.4 1 6.8 2 10.2 2.9v165.2H250.4v44h511.9v-44H591.9V733.4c3.7-1 7.3-2.1 10.9-3.2 16.2-5.1 32.2-11.6 47.4-19.4 5-2.5 10-5.3 14.8-8.1 75.6-43.9 129.2-117.8 147-202.7 3.6-17.2 5.8-34.9 6.3-52.4 0.1-1.5 0.1-3 0.1-4.5h10c72.3 0 131.5-59.2 131.5-131.5v-0.1c0.1-72.3-59.1-131.4-131.4-131.4zM205 399.2h-9.5c-23.2 0-45.1-9.1-61.7-25.7s-25.7-38.5-25.7-61.7v-0.1c0-23.2 9.1-45.2 25.7-61.7 16.6-16.6 38.5-25.7 61.7-25.7h9.5v174.9z m370.9 499.4h-128V737.3c20.9 4.5 42.3 6.8 63.9 6.8 21.7 0 43.1-2.3 64.1-6.8v161.3z m198.7-461.4c0 2.9 0 5.9-0.2 8.9-0.5 15-2.3 30.1-5.4 44.9-15.3 72.7-61.2 136-126.1 173.7-4.1 2.4-8.4 4.7-12.7 6.9-13 6.6-26.7 12.2-40.6 16.6-25.2 7.9-51.4 11.9-77.9 11.9-26.2 0-52.2-3.9-77.1-11.6-13.9-4.3-27.5-9.8-40.6-16.4-4.2-2.1-8.5-4.4-12.6-6.8-65.4-37.8-111.7-101.5-126.9-174.8-3.1-14.7-4.9-29.8-5.3-45-0.1-2.7-0.1-5.5-0.1-8.2v-312h525.6v311.9zM916 311.7c0 23.2-9.1 45.2-25.7 61.7-16.6 16.6-38.5 25.7-61.7 25.7h-9.9v-175h9.9c23.2 0 45.1 9.1 61.7 25.7s25.7 38.5 25.7 61.7v0.2z" fill="#ffffff"/><path d="M555.4 659.6l-4.8-19.4c0.3-0.1 26.5-6.8 55.4-23.5 37.8-21.9 62-49.7 72-82.7l19.1 5.8c-11.4 37.6-39.6 70.3-81.6 94.5-31.2 18-58.9 25-60.1 25.3z" fill="#E73B37"/></svg>"""
 
 # -----------------------------------------------
 # CONSTANTS
 # -----------------------------------------------
-# Number of Monte Carlo samples for Bayesian analysis.
-# Higher = more accurate but slower. 50,000 is a good balance.
-BAYESIAN_SAMPLES = 50_000
-
-# Number of bootstrap resamples for the CI histogram.
+BAYESIAN_SAMPLES  = 50_000
 BOOTSTRAP_SAMPLES = 10_000
+MAX_VARIATIONS    = 3   # max variation groups (so max total groups = 4: control + 3)
+# One colour per group: Control, Var A, Var B, Var C
+GROUP_COLORS = ["#1f77b4", "#2ca02c", "#ff7f0e", "#9467bd"]
 
 
 # -----------------------------------------------
@@ -51,192 +42,262 @@ BOOTSTRAP_SAMPLES = 10_000
 # -----------------------------------------------
 def initialize_state():
     defaults = {
+        "num_variations": 1,
+        # Control
         "users_c": 5000, "conv_c": 500, "rev_c": 25000.0, "prod_c": 750,
-        "users_v": 5000, "conv_v": 600, "rev_v": 33000.0, "prod_v": 1000,
-        "days": 14,
-        "conf_level": "95%",
-        "p_traffic": 50000, "p_base_cr": 2.5, "p_base_aov": 75.0, "p_mde": 5.0,
-        "p_vol": "Medium (Standard E-com)",
+        # Variation A
+        "users_v0": 5000, "conv_v0": 600, "rev_v0": 33000.0, "prod_v0": 1000,
+        # Variation B
+        "users_v1": 5000, "conv_v1": 560, "rev_v1": 30000.0, "prod_v1": 900,
+        # Variation C
+        "users_v2": 5000, "conv_v2": 540, "rev_v2": 28000.0, "prod_v2": 850,
+        "days": 14, "conf_level": "95%", "mc_method": "holm",
+        "p_traffic": 50000, "p_base_cr": 2.5, "p_base_aov": 75.0,
+        "p_mde": 5.0, "p_vol": "Medium (Standard E-com)",
         "s1_uc": 2000, "s1_cc": 100, "s1_uv": 2000, "s1_cv": 110,
         "s2_uc": 3000, "s2_cc": 400, "s2_uv": 3000, "s2_cv": 420,
     }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
-
+    for k, v in defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
 
 initialize_state()
 
+SAVE_KEYS = [
+    "num_variations",
+    "users_c","conv_c","rev_c","prod_c",
+    "users_v0","conv_v0","rev_v0","prod_v0",
+    "users_v1","conv_v1","rev_v1","prod_v1",
+    "users_v2","conv_v2","rev_v2","prod_v2",
+    "days","conf_level","mc_method",
+    "s1_uc","s1_cc","s1_uv","s1_cv",
+    "s2_uc","s2_cc","s2_uv","s2_cv",
+]
+
 
 # -----------------------------------------------
-# HELPER FUNCTIONS
+# HELPERS
 # -----------------------------------------------
-def render_header(svg_code: str, text: str, level: int = 2):
+def render_header(svg, text, level=2):
     st.markdown(
-        f"""<div style="display:flex;align-items:center;margin-bottom:10px;">
-        {svg_code}<h{level} style="margin:0;padding:0;">{text}</h{level}>
-        </div>""",
+        f'<div style="display:flex;align-items:center;margin-bottom:10px;">'
+        f'{svg}<h{level} style="margin:0;padding:0;">{text}</h{level}></div>',
         unsafe_allow_html=True,
     )
 
+def safe_divide(n, d, fallback=0.0):
+    return n / d if d != 0 else fallback
 
-def safe_divide(numerator: float, denominator: float, fallback: float = 0.0) -> float:
-    """Division that returns `fallback` instead of raising ZeroDivisionError."""
-    return numerator / denominator if denominator != 0 else fallback
-
-
-def calculate_uplift(ctrl: float, var: float) -> float:
-    """Percentage uplift of var over ctrl. Returns 0 if ctrl is 0."""
+def calculate_uplift(ctrl, var):
     return safe_divide((var - ctrl) * 100, ctrl)
 
 
-# FIX: Use scipy.stats.chisquare (goodness-of-fit) instead of
-# chi2_contingency (independence test), which was the wrong function for SRM.
-def perform_srm_test(observed: list, expected_split: tuple = (0.5, 0.5)):
-    """
-    Sample Ratio Mismatch test.
-    Returns (chi2_statistic, p_value).
-    p < 0.01 indicates a likely traffic allocation problem.
-    """
-    total = sum(observed)
+# -----------------------------------------------
+# SRM TEST  (supports N groups)
+# -----------------------------------------------
+def perform_srm_test(observed, expected_split=None):
+    n = len(observed)
+    if expected_split is None:
+        expected_split = [1 / n] * n
+    total    = sum(observed)
     expected = [total * p for p in expected_split]
-    stat, p_value = chisquare(observed, f_exp=expected)
-    return stat, p_value
+    stat, p  = chisquare(observed, f_exp=expected)
+    return stat, p
 
 
-
-def reconstruct_order_values(n_users: int, n_conv: int, total_rev: float, rng):
+# -----------------------------------------------
+# MULTI-VARIANT STATISTICAL ENGINE
+# -----------------------------------------------
+def run_multivariate_analysis(groups, alpha, mc_method):
     """
-    Reconstruct a plausible per-order revenue array from aggregate inputs.
+    groups: list of dicts — name, users, conv, rev, prod.
+    Returns omnibus chi-square, pairwise comparisons with MCC, per-group
+    metrics, and the name of the winner (if any).
 
-    Since we only have totals (not individual order values), we use a
-    log-normal distribution parameterised to match the observed mean AOV.
-    Non-converters are included as zeros so the array length equals n_users,
-    making RPV tests valid across the full visitor population.
+    Multiple comparison correction options:
+      holm       – Holm-Bonferroni  (controls FWER, recommended default)
+      bonferroni – Bonferroni        (most conservative)
+      fdr_bh     – Benjamini-Hochberg (controls FDR, best for exploratory)
     """
+    ctrl = groups[0]
+    variations = groups[1:]
+
+    # --- Per-group metrics ---
+    ctrl_cr  = safe_divide(ctrl["conv"],  ctrl["users"])
+    ctrl_aov = safe_divide(ctrl["rev"],   ctrl["conv"])
+    ctrl_rpv = safe_divide(ctrl["rev"],   ctrl["users"])
+
+    metrics = []
+    for g in groups:
+        cr  = safe_divide(g["conv"],  g["users"])
+        aov = safe_divide(g["rev"],   g["conv"])
+        rpv = safe_divide(g["rev"],   g["users"])
+        apo = safe_divide(g["prod"],  g["conv"])
+        apu = safe_divide(g["prod"],  g["users"])
+        metrics.append({
+            "name": g["name"], "users": g["users"], "conv": g["conv"],
+            "cr": cr, "cr_pct": cr * 100, "aov": aov, "rpv": rpv, "apo": apo, "apu": apu,
+            "uplift_cr":  calculate_uplift(ctrl_cr,  cr),
+            "uplift_aov": calculate_uplift(ctrl_aov, aov),
+            "uplift_rpv": calculate_uplift(ctrl_rpv, rpv),
+        })
+
+    # --- Omnibus chi-square (all groups simultaneously) ---
+    conv_arr     = [g["conv"]                        for g in groups]
+    non_conv_arr = [g["users"] - g["conv"]           for g in groups]
+    try:
+        chi2_g, p_global, _, _ = chi2_contingency(
+            np.array([conv_arr, non_conv_arr]).T   # shape (n_groups, 2)
+        )
+    except Exception:
+        chi2_g, p_global = 0.0, 1.0
+
+    # --- Pairwise: each variation vs control ---
+    raw_p, z_stats, labels = [], [], []
+    for var in variations:
+        try:
+            z, p = proportions_ztest(
+                [ctrl["conv"], var["conv"]],
+                [ctrl["users"], var["users"]],
+            )
+        except Exception:
+            z, p = 0.0, 1.0
+        raw_p.append(p)
+        z_stats.append(z)
+        labels.append(var["name"])
+
+    # --- Multiple comparison correction ---
+    if len(raw_p) > 0:
+        reject, p_adj, _, _ = multipletests(raw_p, alpha=alpha, method=mc_method)
+    else:
+        reject, p_adj = np.array([]), np.array([])
+
+    pairwise = []
+    for i, var in enumerate(variations):
+        m = metrics[i + 1]
+        pairwise.append({
+            "name":        var["name"],
+            "z_stat":      z_stats[i],
+            "p_raw":       raw_p[i],
+            "p_adjusted":  float(p_adj[i]),
+            "significant": bool(reject[i]),
+            "uplift_cr":   m["uplift_cr"],
+            "uplift_aov":  m["uplift_aov"],
+            "uplift_rpv":  m["uplift_rpv"],
+        })
+
+    # --- Winner = significant variation with highest CR uplift ---
+    sig_winners = [pw for pw in pairwise if pw["significant"] and pw["uplift_cr"] > 0]
+    winner = max(sig_winners, key=lambda x: x["uplift_cr"])["name"] if sig_winners else None
+
+    return {
+        "chi2_global": chi2_g, "p_global": p_global,
+        "pairwise": pairwise, "metrics": metrics,
+        "winner": winner, "correction": mc_method,
+        "n_comparisons": len(variations),
+    }
+
+
+# -----------------------------------------------
+# BAYESIAN  (supports N groups)
+# -----------------------------------------------
+def calculate_bayesian_multivariate(groups):
+    """
+    Monte Carlo Beta-posterior analysis for all groups simultaneously.
+    Returns prob_best and expected_loss per group.
+    """
+    rng = np.random.default_rng()
+    samples = {}
+    for g in groups:
+        a = g["conv"] + 1
+        b = max(g["users"] - g["conv"], 0) + 1
+        samples[g["name"]] = rng.beta(a, b, BAYESIAN_SAMPLES)
+
+    names = list(samples.keys())
+    arr   = np.stack([samples[n] for n in names], axis=1)   # (SAMPLES, n_groups)
+
+    best_idx   = np.argmax(arr, axis=1)
+    prob_best  = {n: float(np.mean(best_idx == i)) for i, n in enumerate(names)}
+    max_all    = arr.max(axis=1, keepdims=True)
+    exp_loss   = {
+        n: float(np.mean(np.maximum(max_all[:, 0] - arr[:, i], 0)))
+        for i, n in enumerate(names)
+    }
+    return {"prob_best": prob_best, "expected_loss": exp_loss}
+
+# Keep 2-group version for bootstrap tab
+def calculate_bayesian_risk(ac, bc, av, bv):
+    rng   = np.random.default_rng()
+    s_c   = rng.beta(ac, bc, BAYESIAN_SAMPLES)
+    s_v   = rng.beta(av, bv, BAYESIAN_SAMPLES)
+    p_win = float(np.mean(s_v > s_c))
+    lv    = float(np.mean(np.maximum(s_c - s_v, 0)))
+    lc    = float(np.mean(np.maximum(s_v - s_c, 0)))
+    return p_win, lv, lc
+
+
+# -----------------------------------------------
+# REVENUE SIGNIFICANCE
+# -----------------------------------------------
+def reconstruct_order_values(n_users, n_conv, total_rev, rng):
     if n_conv <= 0 or total_rev <= 0:
         return np.zeros(max(n_users, 1))
-
-    aov = total_rev / n_conv
-    # Log-normal sigma=0.8 is typical for e-commerce order value distributions
+    aov   = total_rev / n_conv
     sigma = 0.8
-    mu = np.log(aov) - (sigma ** 2) / 2
+    mu    = np.log(aov) - (sigma ** 2) / 2
+    vals  = rng.lognormal(mean=mu, sigma=sigma, size=n_conv)
+    vals  = vals * (total_rev / vals.sum())
+    arr   = np.zeros(n_users)
+    idx   = rng.choice(n_users, size=n_conv, replace=False)
+    arr[idx] = vals
+    return arr
 
-    order_values = rng.lognormal(mean=mu, sigma=sigma, size=n_conv)
-    # Scale so simulated total exactly matches real revenue
-    order_values = order_values * (total_rev / order_values.sum())
-
-    visitor_array = np.zeros(n_users)
-    converter_indices = rng.choice(n_users, size=n_conv, replace=False)
-    visitor_array[converter_indices] = order_values
-    return visitor_array
-
-
-def test_revenue_significance(
-    users_c: int, conv_c: int, rev_c: float,
-    users_v: int, conv_v: int, rev_v: float,
-    alpha: float = 0.05,
-    n_bootstrap: int = 2000,
-) -> dict:
-    """
-    Tests AOV and RPV for statistical significance using two complementary methods:
-
-    1. Mann-Whitney U — non-parametric rank test on reconstructed order arrays.
-       Robust to skew, does not assume normality. Used as the primary test.
-
-    2. Log-transformed bootstrap CI — resamples reconstructed arrays and computes
-       a percentile CI on the difference in means. Handles heavy right tails
-       typical in revenue data.
-
-    Returns a dict with results for both AOV and RPV.
-    Note: because we reconstruct distributions from aggregates (not raw data),
-    treat these p-values as directional signals, not precise frequentist claims.
-    """
-    rng = np.random.default_rng(seed=42)  # Fixed seed for reproducibility
-
-    # AOV arrays: converters only
-    aov_c_vals = conv_c
-    aov_arr_c = reconstruct_order_values(conv_c, conv_c, rev_c, rng) if conv_c > 0 else np.zeros(1)
-    aov_arr_v = reconstruct_order_values(conv_v, conv_v, rev_v, rng) if conv_v > 0 else np.zeros(1)
-    # RPV arrays: all visitors including non-converters
-    rpv_arr_c = reconstruct_order_values(users_c, conv_c, rev_c, rng)
-    rpv_arr_v = reconstruct_order_values(users_v, conv_v, rev_v, rng)
-
+def test_revenue_significance(uc, cc, rc, uv, cv, rv, alpha=0.05, n_boot=2000):
+    rng = np.random.default_rng(seed=42)
+    aov_c = reconstruct_order_values(cc, cc, rc, rng) if cc > 0 else np.zeros(1)
+    aov_v = reconstruct_order_values(cv, cv, rv, rng) if cv > 0 else np.zeros(1)
+    rpv_c = reconstruct_order_values(uc, cc, rc, rng)
+    rpv_v = reconstruct_order_values(uv, cv, rv, rng)
     results = {}
-
-    for label, arr_c, arr_v in [("aov", aov_arr_c, aov_arr_v), ("rpv", rpv_arr_c, rpv_arr_v)]:
-        # --- Mann-Whitney U ---
-        if arr_c.sum() == 0 and arr_v.sum() == 0:
-            mw_u, mw_p = 0.0, 1.0
-        else:
-            try:
-                mw_u, mw_p = mannwhitneyu(arr_c, arr_v, alternative="two-sided")
-            except ValueError:
-                mw_u, mw_p = 0.0, 1.0
-
-        # --- Log-transformed bootstrap ---
-        log_c = np.log1p(arr_c)
-        log_v = np.log1p(arr_v)
-        boot_diffs = np.array([
-            np.expm1(rng.choice(log_v, size=len(log_v), replace=True).mean()) -
-            np.expm1(rng.choice(log_c, size=len(log_c), replace=True).mean())
-            for _ in range(n_bootstrap)
+    for label, ac, av in [("aov", aov_c, aov_v), ("rpv", rpv_c, rpv_v)]:
+        try:
+            _, mw_p = mannwhitneyu(ac, av, alternative="two-sided") if (ac.sum() + av.sum()) > 0 else (0, 1.0)
+        except ValueError:
+            mw_p = 1.0
+        lc, lv    = np.log1p(ac), np.log1p(av)
+        diffs     = np.array([
+            np.expm1(rng.choice(lv, len(lv), replace=True).mean()) -
+            np.expm1(rng.choice(lc, len(lc), replace=True).mean())
+            for _ in range(n_boot)
         ])
-        ci_low = float(np.percentile(boot_diffs, (alpha / 2) * 100))
-        ci_high = float(np.percentile(boot_diffs, (1 - alpha / 2) * 100))
-        observed_diff = arr_v.mean() - arr_c.mean()
-        boot_p = float(np.mean(boot_diffs <= 0) * 2) if observed_diff >= 0 else float(np.mean(boot_diffs >= 0) * 2)
-        boot_p = min(boot_p, 1.0)
-
+        ci_l  = float(np.percentile(diffs, alpha / 2 * 100))
+        ci_h  = float(np.percentile(diffs, (1 - alpha / 2) * 100))
+        od    = av.mean() - ac.mean()
+        bp    = min(float(np.mean(diffs <= 0) * 2) if od >= 0 else float(np.mean(diffs >= 0) * 2), 1.0)
         results[label] = {
-            "mw_p": mw_p,
-            "mw_sig": mw_p <= alpha,
-            "boot_p": boot_p,
-            "boot_sig": boot_p <= alpha,
-            "boot_ci_low": ci_low,
-            "boot_ci_high": ci_high,
-            "sig": (mw_p <= alpha) or (boot_p <= alpha),
+            "mw_p": mw_p, "mw_sig": mw_p <= alpha,
+            "boot_p": bp, "boot_sig": bp <= alpha,
+            "boot_ci_low": ci_l, "boot_ci_high": ci_h,
+            "sig": (mw_p <= alpha) or (bp <= alpha),
         }
-
     return results
 
 
-def calculate_bayesian_risk(alpha_c, beta_c, alpha_v, beta_v):
-    """
-    Monte Carlo Bayesian analysis using Beta distributions.
-    Returns (prob_variation_wins, expected_loss_switching, expected_loss_staying).
-    """
-    rng = np.random.default_rng()  # Use a modern, seedable RNG
-    s_c = rng.beta(alpha_c, beta_c, BAYESIAN_SAMPLES)
-    s_v = rng.beta(alpha_v, beta_v, BAYESIAN_SAMPLES)
-    prob_v_wins = float(np.mean(s_v > s_c))
-    loss_v = float(np.mean(np.maximum(s_c - s_v, 0)))
-    loss_c = float(np.mean(np.maximum(s_v - s_c, 0)))
-    return prob_v_wins, loss_v, loss_c
-
-
-def check_simpsons_paradox(seg1: dict, seg2: dict):
-    """
-    Detects Simpson's Paradox across two segments.
-    Returns (paradox_detected, uplift_seg1, uplift_seg2, uplift_aggregate).
-    """
-    cr_c1 = safe_divide(seg1["conv_c"], seg1["users_c"])
-    cr_v1 = safe_divide(seg1["conv_v"], seg1["users_v"])
-    up1 = calculate_uplift(cr_c1, cr_v1)
-
-    cr_c2 = safe_divide(seg2["conv_c"], seg2["users_c"])
-    cr_v2 = safe_divide(seg2["conv_v"], seg2["users_v"])
-    up2 = calculate_uplift(cr_c2, cr_v2)
-
+# -----------------------------------------------
+# SIMPSON'S PARADOX
+# -----------------------------------------------
+def check_simpsons_paradox(seg1, seg2):
+    cr_c1  = safe_divide(seg1["conv_c"], seg1["users_c"])
+    cr_v1  = safe_divide(seg1["conv_v"], seg1["users_v"])
+    up1    = calculate_uplift(cr_c1, cr_v1)
+    cr_c2  = safe_divide(seg2["conv_c"], seg2["users_c"])
+    cr_v2  = safe_divide(seg2["conv_v"], seg2["users_v"])
+    up2    = calculate_uplift(cr_c2, cr_v2)
+    agg_cc = seg1["conv_c"]  + seg2["conv_c"]
     agg_uc = seg1["users_c"] + seg2["users_c"]
-    agg_cc = seg1["conv_c"] + seg2["conv_c"]
+    agg_cv = seg1["conv_v"]  + seg2["conv_v"]
     agg_uv = seg1["users_v"] + seg2["users_v"]
-    agg_cv = seg1["conv_v"] + seg2["conv_v"]
-
-    cr_c_agg = safe_divide(agg_cc, agg_uc)
-    cr_v_agg = safe_divide(agg_cv, agg_uv)
-    up_agg = calculate_uplift(cr_c_agg, cr_v_agg)
-
+    up_agg = calculate_uplift(safe_divide(agg_cc, agg_uc), safe_divide(agg_cv, agg_uv))
     paradox = (up1 > 0 and up2 > 0 and up_agg < 0) or (up1 < 0 and up2 < 0 and up_agg > 0)
     return paradox, up1, up2, up_agg
 
@@ -244,64 +305,60 @@ def check_simpsons_paradox(seg1: dict, seg2: dict):
 # -----------------------------------------------
 # AI ANALYSIS
 # -----------------------------------------------
-def get_ai_analysis(api_key: str, hypothesis: str, metrics: dict, provider: str = "OpenAI", conf_level: str = "95%") -> str:
+def get_ai_analysis(api_key, hypothesis, metrics, provider="OpenAI", conf_level="95%"):
     if not api_key:
         return "Please enter a valid API Key to generate this analysis."
-
-    base_url = "https://api.deepseek.com" if provider == "DeepSeek" else "https://api.openai.com/v1"
-    model_name = "deepseek-reasoner" if provider == "DeepSeek" else "gpt-4o"
-
-    prompt = f"""You are an expert CRO analyst writing a structured A/B test report for a business stakeholder.
+    base_url   = "https://api.deepseek.com"  if provider == "DeepSeek" else "https://api.openai.com/v1"
+    model_name = "deepseek-reasoner"          if provider == "DeepSeek" else "gpt-4o"
+    prompt = f"""You are an expert CRO analyst writing a structured A/B/n test report for a business stakeholder.
 
 EXPERIMENT CONFIGURATION
 - Confidence Level: {conf_level}
 - Hypothesis: "{hypothesis}"
 
 EXPERIMENT DATA
-{metrics}
+{json.dumps(metrics, indent=2)}
 
 INSTRUCTIONS
-Write the report in Markdown using exactly the sections below, in this order. Do not add a title or restate the hypothesis as a heading — instead, weave the hypothesis naturally into the opening sentence of the Executive Summary.
-
----
+Write in Markdown using exactly these sections. Do not restate the hypothesis as a heading — weave it into the Executive Summary opening sentence. If multiple variants are present, compare each vs control and identify a clear winner or explain why none qualifies.
 
 ## Executive Summary
-One paragraph. Open by referencing what was tested (from the hypothesis) and immediately state whether the experiment won, lost, or was inconclusive. Include the key conversion rate uplift, statistical significance, and financial impact per visitor in this paragraph.
+One paragraph. State what was tested, whether any variant won, the best CR uplift, significance, and financial impact per visitor.
 
 ## Trade-off Analysis
-Analyse the relationship between Conversion Rate, Average Order Value, and Revenue Per Visitor. Explain whether the variation is a clean win, a volume-vs-value trade-off, or a net negative, and what that means for the business.
+CR vs AOV vs RPV across all variants. Identify clean wins, volume-vs-value trade-offs, or net negatives. Note whether MCC affected any conclusions.
 
 ## Risk Assessment
-Assess the risk of shipping this change using the Bayesian probability and expected loss figures. Factor in test duration and SRM status. Be direct about whether the data is trustworthy.
+Bayesian probability and expected loss per variant. Factor in duration, SRM status, and number of variants tested.
 
 ## Visual Insights
 
 ### Strategic Matrix
-One paragraph explaining what the scatter plot of CR vs AOV reveals. Describe where the Variation dot sits relative to the Control dot (top-right = growth, bottom-right = volume at cost of value, top-left = premium shift, bottom-left = loss) and what that quadrant means strategically.
+Where each variant sits on CR vs AOV quadrant and what it means strategically.
 
 ### Product Metrics
-One paragraph interpreting the bar charts for Avg Products per Order and Avg Products per User. Explain whether basket size is growing or shrinking and what that implies about user behaviour.
+Basket size trends (APO, APU) across all groups and behavioural implications.
 
 ### Revenue Charts
-One paragraph interpreting the Revenue Per Visitor and Average Order Value bar charts side by side. Explain what the combination of these two metrics tells us about the revenue quality of the variation.
+RPV and AOV side by side — what the combination tells us about revenue quality per variant.
 
 ### CR Comparison
-One paragraph interpreting the conversion rate bar chart. Put the absolute rates in context — is a {metrics.get('uplift_cr', 0):.2f}% uplift meaningful given the base rate and sample size?
+Contextualise each variant's uplift given sample size and base rate.
 
 ### Bayesian Posterior
-One paragraph explaining the overlapping Beta distribution curves. Describe how much the two distributions overlap, what that means for certainty, and how to read the probability that the variation is best.
+Overlapping Beta distributions — overlap degree, certainty, and probability each variant is best.
 
 ### Bootstrap Distribution
-One paragraph explaining the histogram of resampled CR differences. Describe where the distribution is centred, whether the confidence interval bounds cross zero, and what that means for decision-making.
+Histogram of resampled CR differences — centre, CI bounds, zero-crossing implications.
 
 ### Box Plot
-One paragraph interpreting the box plots. Comment on the median, spread (IQR), and any outliers for each group. Explain what a wide or narrow box tells us about the stability of the conversion rate.
+Median, IQR spread, and stability across groups.
 
 ## Recommendation
-One clear, direct paragraph. State ship / do not ship / run longer, with the single most important reason. End with one concrete next step."""
+One paragraph. Ship / do not ship / run longer for each variant. Name a winner if one exists. End with one concrete next step."""
 
     try:
-        client = openai.OpenAI(api_key=api_key, base_url=base_url)
+        client   = openai.OpenAI(api_key=api_key, base_url=base_url)
         response = client.chat.completions.create(
             model=model_name,
             messages=[{"role": "user", "content": prompt}],
@@ -313,585 +370,526 @@ One clear, direct paragraph. State ship / do not ship / run longer, with the sin
 
 
 # -----------------------------------------------
-# RULE-BASED SMART ANALYSIS
+# SMART ANALYSIS  (rule-based)
 # -----------------------------------------------
-def generate_smart_analysis(hypothesis: str, metrics: dict, alpha_val: float) -> str:
+def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, alpha_val):
     report = []
 
-    # --- Guard: SRM detected means results are invalid ---
-    if metrics["p_srm"] < 0.01:
-        report.append("### ⛔ CRITICAL: Sample Ratio Mismatch (SRM) Detected")
+    if metrics_payload["p_srm"] < 0.01:
+        report.append("### ⛔ CRITICAL: Sample Ratio Mismatch Detected")
         report.append(
-            f"SRM p-value = **{metrics['p_srm']:.4f}** (threshold: 0.01). "
-            "The traffic split between Control and Variation is not what was intended. "
-            "**All results below are likely invalid.** Investigate your randomisation logic before drawing any conclusions."
+            f"SRM p = **{metrics_payload['p_srm']:.4f}**. Traffic split is uneven — "
+            "**all results below are likely invalid.** Fix your randomisation before drawing conclusions."
         )
         return "\n\n".join(report)
 
-    # --- Executive Summary ---
-    sig = metrics["p_cr"] <= alpha_val
-    uplift = metrics["uplift_cr"]
+    n_vars  = mv_results["n_comparisons"]
+    winner  = mv_results["winner"]
+    p_glob  = mv_results["p_global"]
 
-    if sig and uplift > 0:
-        headline = "✅ WINNER: Statistically Significant Positive Result"
-        summary = f"The Variation outperforms Control with **{(1 - alpha_val)*100:.0f}% confidence** (p = {metrics['p_cr']:.4f})."
-    elif sig and uplift < 0:
-        headline = "❌ LOSER: Statistically Significant Negative Result"
-        summary = f"The Variation is performing **significantly worse** than Control (p = {metrics['p_cr']:.4f}). Do not ship."
+    # Headline
+    if n_vars == 1:
+        pw = mv_results["pairwise"][0]
+        if pw["significant"] and pw["uplift_cr"] > 0:
+            headline = "✅ WINNER: Statistically Significant Positive Result"
+            summary  = f"Variation outperforms Control at {(1-alpha_val)*100:.0f}% confidence (p_adj = {pw['p_adjusted']:.4f})."
+        elif pw["significant"] and pw["uplift_cr"] < 0:
+            headline = "❌ LOSER: Statistically Significant Negative Result"
+            summary  = f"Variation is significantly worse than Control (p_adj = {pw['p_adjusted']:.4f}). Do not ship."
+        else:
+            headline = "⚠️ INCONCLUSIVE: No Clear Winner"
+            summary  = f"Cannot reject the null hypothesis (p_adj = {pw['p_adjusted']:.4f}). More data needed."
     else:
-        headline = "⚠️ INCONCLUSIVE: No Clear Winner"
-        summary = f"We cannot reject the null hypothesis (p = {metrics['p_cr']:.4f} > {alpha_val}). More data is needed."
+        if winner:
+            headline = f"✅ MULTI-VARIANT WINNER: {winner}"
+            summary  = (
+                f"Omnibus test confirms a significant difference (χ² p = {p_glob:.4f}). "
+                f"**{winner}** is the strongest performer after "
+                f"{mv_results['correction'].upper()} correction."
+            )
+        elif p_glob <= alpha_val:
+            headline = "⚠️ SIGNIFICANT DIFFERENCE — No Positive Winner"
+            summary  = (
+                f"Omnibus test significant (p = {p_glob:.4f}) but no variant shows a "
+                "significant positive uplift after correction. One may be significantly worse."
+            )
+        else:
+            headline = "⚠️ MULTI-VARIANT INCONCLUSIVE"
+            summary  = f"No significant overall difference (omnibus p = {p_glob:.4f})."
 
     report.append(f"### {headline}")
     report.append(summary)
-
     if hypothesis:
-        report.append(f"**Hypothesis tested:** _{hypothesis}_")
+        report.append(f"**Hypothesis:** _{hypothesis}_")
 
-    # --- Data Health ---
+    # Data health
     report.append("### Data Health & Validity")
-    days = metrics["days"]
+    days = metrics_payload["days"]
     if days < 7:
-        report.append(f"- ⚠️ **Duration Warning:** Only {days} days — too short, results are unreliable.")
+        report.append(f"- ⚠️ **Duration:** Only {days} days — too short.")
     elif days < 14:
-        report.append(f"- ⚠️ **Duration Caution:** {days} days — watch for novelty effects.")
+        report.append(f"- ⚠️ **Duration:** {days} days — watch for novelty effects.")
     else:
         report.append(f"- ✅ **Duration:** {days} days — healthy.")
-    report.append(f"- ✅ **SRM Check:** Passed (p = {metrics['p_srm']:.4f}).")
+    report.append(f"- ✅ **SRM:** Passed (p = {metrics_payload['p_srm']:.4f}).")
+    if n_vars > 1:
+        report.append(
+            f"- ℹ️ **MCC:** {mv_results['correction'].upper()} applied across "
+            f"{n_vars} pairwise comparisons."
+        )
 
-    # --- Performance Breakdown ---
-    report.append("### Performance Breakdown")
-    cr_dir = "Improved" if uplift > 0 else "Decreased"
-    report.append(f"- **Conversion Rate:** {cr_dir} by **{uplift:.2f}%** ({metrics['cr_c']:.2f}% → {metrics['cr_v']:.2f}%).")
+    # Pairwise table
+    report.append("### Pairwise Results vs Control")
+    for pw in mv_results["pairwise"]:
+        sig = "✅ Significant" if pw["significant"] else "❌ Not Significant"
+        d   = "▲" if pw["uplift_cr"] > 0 else "▼"
+        report.append(
+            f"- **{pw['name']}**: CR {d}{pw['uplift_cr']:+.2f}% | "
+            f"RPV {pw['uplift_rpv']:+.2f}% | "
+            f"p_raw={pw['p_raw']:.4f} → p_adj={pw['p_adjusted']:.4f} — {sig}"
+        )
 
-    aov_change = metrics["uplift_aov"]
-    if abs(aov_change) < 1.0:
-        aov_text = "remained stable"
-    elif aov_change > 0:
-        aov_text = f"increased by {aov_change:.2f}%"
-    else:
-        aov_text = f"decreased by {abs(aov_change):.2f}%"
-    report.append(f"- **Average Order Value:** {aov_text} (${metrics['aov_c']:.2f} → ${metrics['aov_v']:.2f}).")
+    # Bayesian
+    report.append("### Bayesian Assessment")
+    for name, prob in bayes_mv["prob_best"].items():
+        loss = bayes_mv["expected_loss"].get(name, 0)
+        report.append(f"- **{name}**: {prob*100:.1f}% P(best) | Expected loss: {loss*100:.5f}%")
 
-    rpv_delta = metrics["rpv_v"] - metrics["rpv_c"]
-    rpv_dir = "more" if rpv_delta >= 0 else "less"
-    report.append(f"- **Revenue Per Visitor:** ${abs(rpv_delta):.2f} {rpv_dir} per visitor.")
-
-    # --- Bayesian Risk ---
-    report.append("### Bayesian Risk Assessment")
-    report.append(f"- **Probability Variation is Best:** {metrics['prob_v_wins']:.1f}%")
-    report.append(f"- **Expected Loss (if you switch):** {metrics['loss_v']:.5f}%")
-    report.append(f"- **Expected Loss (if you stay):** {metrics['loss_c']:.5f}%")
-
-    # --- Confidence Interval ---
-    report.append("### Confidence Interval on Conversion Rate Difference")
-    ci_low, ci_high = metrics["ci_low"], metrics["ci_high"]
-    if ci_low > 0:
-        report.append(f"The {(1-alpha_val)*100:.0f}% CI ({ci_low:.2f}% to {ci_high:.2f}%) is **entirely positive** — strong evidence the Variation wins.")
-    elif ci_high < 0:
-        report.append(f"The {(1-alpha_val)*100:.0f}% CI ({ci_low:.2f}% to {ci_high:.2f}%) is **entirely negative** — strong evidence the Variation loses.")
-    else:
-        report.append(f"The {(1-alpha_val)*100:.0f}% CI ({ci_low:.2f}% to {ci_high:.2f}%) **crosses zero** — uncertainty remains.")
-
-    # --- Strategic Quadrant ---
+    # Conclusion
     report.append("### Strategic Conclusion")
-    if uplift > 0 and aov_change > 0:
-        report.append("🟢 **Growth Engine:** Both conversion volume and basket value are up. This is a clean win.")
-    elif uplift > 0 and aov_change < 0:
-        report.append("🟡 **Discount Effect:** More orders but smaller baskets. Check if RPV is still positive before shipping.")
-    elif uplift < 0 and aov_change > 0:
-        report.append("🟡 **Premium Shift:** Fewer but higher-value orders. May suit a premium positioning strategy.")
+    if winner:
+        pw_w = next(p for p in mv_results["pairwise"] if p["name"] == winner)
+        if pw_w["uplift_cr"] > 0 and pw_w["uplift_rpv"] > 0:
+            report.append(f"🟢 **{winner} — Growth Engine:** CR and RPV both up. Ship.")
+        elif pw_w["uplift_cr"] > 0 and pw_w["uplift_rpv"] < 0:
+            report.append(f"🟡 **{winner} — Volume Play:** CR up, RPV down. Check revenue before shipping.")
+        else:
+            report.append(f"🟡 **{winner} — Marginal:** Review full metrics before shipping.")
     else:
-        report.append("🔴 **Negative Friction:** Both conversion and order value are down. Do not ship.")
+        report.append("🔴 No variant qualifies for shipping on current data.")
 
     return "\n\n".join(report)
 
 
 # -----------------------------------------------
-# PLOTTING FUNCTIONS
+# PLOTTING
 # -----------------------------------------------
-def plot_strategic_matrix(cr_c, aov_c, cr_v, aov_v):
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.scatter(cr_c, aov_c, color="blue", s=200, label="Control", zorder=5)
-    ax.scatter(cr_v, aov_v, color="green", s=200, label="Variation", zorder=5)
-    ax.annotate(
-        "", xy=(cr_v, aov_v), xytext=(cr_c, aov_c),
-        arrowprops=dict(arrowstyle="->", color="gray", lw=1.5, ls="--"),
-    )
-    ax.axvline(cr_c, color="gray", linestyle=":", alpha=0.5)
-    ax.axhline(aov_c, color="gray", linestyle=":", alpha=0.5)
-    ax.set_title("Strategic Matrix: Volume (CR) vs Value (AOV)")
+def plot_multivariant_bar(title, values, labels, unit=""):
+    fig, ax = plt.subplots(figsize=(max(8, len(labels) * 2.2), 5))
+    ctrl_val = values[0]
+    colors   = [
+        GROUP_COLORS[i] if (i == 0 or v >= ctrl_val) else "#d62728"
+        for i, v in enumerate(values)
+    ]
+    bars = ax.bar(labels, values, color=colors, alpha=0.85)
+    mx   = max(values) if max(values) > 0 else 1
+    ax.set_ylim(0, mx * 1.18)
+    ax.set_title(f"{title} by Group")
+    ax.set_ylabel(title)
+    for bar, v in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2,
+                v + mx * 0.01,
+                f"{unit}{v:.2f}", ha="center", va="bottom", fontweight="bold", fontsize=9)
+    st.pyplot(fig)
+    plt.close(fig)
+
+def plot_strategic_matrix(metrics_list):
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ctrl = metrics_list[0]
+    for i, m in enumerate(metrics_list):
+        ax.scatter(m["cr_pct"], m["aov"], color=GROUP_COLORS[i], s=220,
+                   label=m["name"], zorder=5)
+        if i > 0:
+            ax.annotate("",
+                xy=(m["cr_pct"], m["aov"]), xytext=(ctrl["cr_pct"], ctrl["aov"]),
+                arrowprops=dict(arrowstyle="->", color=GROUP_COLORS[i], lw=1.5, ls="--"),
+            )
+    ax.axvline(ctrl["cr_pct"], color="gray", ls=":", alpha=0.4)
+    ax.axhline(ctrl["aov"],    color="gray", ls=":", alpha=0.4)
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    cx, cy = ctrl["cr_pct"], ctrl["aov"]
+    for label, xpos, ypos, colour in [
+        ("Growth\nCR↑ AOV↑",  cx+(xl[1]-cx)*.5, cy+(yl[1]-cy)*.5, "green"),
+        ("Premium\nCR↓ AOV↑", cx-(cx-xl[0])*.5, cy+(yl[1]-cy)*.5, "orange"),
+        ("Volume\nCR↑ AOV↓",  cx+(xl[1]-cx)*.5, cy-(cy-yl[0])*.5, "orange"),
+        ("Loss\nCR↓ AOV↓",    cx-(cx-xl[0])*.5, cy-(cy-yl[0])*.5, "red"),
+    ]:
+        ax.text(xpos, ypos, label, ha="center", va="center",
+                fontsize=8, color=colour, alpha=0.5)
+    ax.set_title("Strategic Matrix: CR vs AOV")
     ax.set_xlabel("Conversion Rate (%)")
     ax.set_ylabel("Average Order Value ($)")
     ax.legend()
     st.pyplot(fig)
-    plt.close(fig)  # FIX: Prevent memory leak
+    plt.close(fig)
 
-
-def plot_metric_comparison(name: str, val_c: float, val_v: float, unit: str = ""):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    colors = ["#1f77b4", "#2ca02c"] if val_v >= val_c else ["#1f77b4", "#d62728"]
-    ax.bar(["Control", "Variation"], [val_c, val_v], color=colors, alpha=0.8)
-    ax.set_title(f"{name} Comparison")
-    ax.set_ylabel(name)
-    max_val = max(val_c, val_v)
-    ax.set_ylim(0, max_val * 1.15 if max_val > 0 else 1)
-    for i, v in enumerate([val_c, val_v]):
-        ax.text(i, v + (max_val * 0.01 if max_val > 0 else 0.01), f"{unit}{v:.2f}",
-                ha="center", va="bottom", fontweight="bold")
-    st.pyplot(fig)
-    plt.close(fig)  # FIX: Prevent memory leak
-
-
-def plot_bayesian_pdfs(alpha_c, beta_c, alpha_v, beta_v):
-    dist_c = beta(alpha_c, beta_c)
-    dist_v = beta(alpha_v, beta_v)
-    x_min = min(dist_c.ppf(0.001), dist_v.ppf(0.001))
-    x_max = max(dist_c.ppf(0.999), dist_v.ppf(0.999))
-    x = np.linspace(x_min, x_max, 1000)
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(x, dist_c.pdf(x), label="Control", color="blue")
-    ax.fill_between(x, dist_c.pdf(x), 0, alpha=0.3, color="blue")
-    ax.plot(x, dist_v.pdf(x), label="Variation", color="green")
-    ax.fill_between(x, dist_v.pdf(x), 0, alpha=0.3, color="green")
+def plot_bayesian_pdfs(groups):
+    fig, ax = plt.subplots(figsize=(11, 5))
+    for i, g in enumerate(groups):
+        a = g["conv"] + 1
+        b = max(g["users"] - g["conv"], 0) + 1
+        d = beta(a, b)
+        x = np.linspace(d.ppf(0.001), d.ppf(0.999), 1000)
+        ax.plot(x, d.pdf(x), label=g["name"], color=GROUP_COLORS[i], lw=2)
+        ax.fill_between(x, d.pdf(x), 0, alpha=0.15, color=GROUP_COLORS[i])
     ax.set_title("Bayesian Posterior Distributions")
     ax.set_xlabel("Conversion Rate")
     ax.set_ylabel("Probability Density")
     ax.legend()
     st.pyplot(fig)
-    plt.close(fig)  # FIX: Prevent memory leak
+    plt.close(fig)
 
-
-def run_bootstrap_and_plot(users_c, conv_c, users_v, conv_v, alpha_val=0.05):
-    """
-    Runs a parametric bootstrap by resampling from Binomial distributions.
-    Returns (sim_c_pct, sim_v_pct, ci_lower_pct, ci_upper_pct).
-    """
-    rng = np.random.default_rng()
-    p_c = safe_divide(conv_c, users_c)
-    p_v = safe_divide(conv_v, users_v)
-    sim_c = rng.binomial(users_c, p_c, BOOTSTRAP_SAMPLES) / users_c
-    sim_v = rng.binomial(users_v, p_v, BOOTSTRAP_SAMPLES) / users_v
+def run_bootstrap_and_plot(uc, cc, uv, cv, alpha_val=0.05, label_v="Variation"):
+    rng   = np.random.default_rng()
+    pc    = safe_divide(cc, uc)
+    pv    = safe_divide(cv, uv)
+    sim_c = rng.binomial(uc, pc, BOOTSTRAP_SAMPLES) / uc
+    sim_v = rng.binomial(uv, pv, BOOTSTRAP_SAMPLES) / uv
     diffs = sim_v - sim_c
-
-    lower_pct = (alpha_val / 2) * 100
-    upper_pct = (1 - alpha_val / 2) * 100
-    ci_low = float(np.percentile(diffs, lower_pct))
-    ci_high = float(np.percentile(diffs, upper_pct))
-
+    ci_l  = float(np.percentile(diffs, alpha_val / 2 * 100))
+    ci_h  = float(np.percentile(diffs, (1 - alpha_val / 2) * 100))
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.hist(diffs, bins=60, color="orange", edgecolor="black", alpha=0.7)
-    ax.axvline(ci_low, color="red", linestyle="--", label=f"{(1-alpha_val)*100:.0f}% CI Lower")
-    ax.axvline(ci_high, color="red", linestyle="--", label=f"{(1-alpha_val)*100:.0f}% CI Upper")
-    ax.axvline(0, color="black", linestyle="-", linewidth=1.2, label="No effect")
-    ax.set_title("Bootstrap Distribution of CR Difference (Variation − Control)")
+    ax.axvline(ci_l, color="red", ls="--", label=f"{(1-alpha_val)*100:.0f}% CI Lower")
+    ax.axvline(ci_h, color="red", ls="--", label=f"{(1-alpha_val)*100:.0f}% CI Upper")
+    ax.axvline(0,    color="black", lw=1.2, label="No effect")
+    ax.set_title(f"Bootstrap CR Difference ({label_v} − Control)")
     ax.set_xlabel("Difference in Conversion Rate")
     ax.set_ylabel("Frequency")
     ax.legend()
     st.pyplot(fig)
-    plt.close(fig)  # FIX: Prevent memory leak
+    plt.close(fig)
+    return sim_c * 100, sim_v * 100, ci_l * 100, ci_h * 100
 
-    return sim_c * 100, sim_v * 100, ci_low * 100, ci_high * 100
-
-
-def plot_box_plot_analysis(samples_c, samples_v):
+def plot_box_plots(samples_c, samples_v, label_v="Best Variation"):
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.boxplot(
-        [samples_c, samples_v],
-        patch_artist=True,
-        widths=0.6,
-        boxprops=dict(facecolor="skyblue"),
-    )
+    ax.boxplot([samples_c, samples_v], patch_artist=True, widths=0.6,
+               boxprops=dict(facecolor="skyblue"))
     ax.set_xticks([1, 2])
-    ax.set_xticklabels(["Control Group", "Variation Group"])
+    ax.set_xticklabels(["Control", label_v])
     ax.set_ylabel("Conversion Rate (%)")
-    ax.set_title("Box Plot: Bootstrap Conversion Rate Distributions")
+    ax.set_title("Box Plot: Bootstrap CR Distributions")
     st.pyplot(fig)
-    plt.close(fig)  # FIX: Prevent memory leak
+    plt.close(fig)
 
 
-# -----------------------------------------------
-# SIDEBAR — SETTINGS
-# -----------------------------------------------
+# ============================================================
+# SIDEBAR
+# ============================================================
 st.sidebar.markdown(
-    f"""<div style="display:flex;align-items:center;">{ICON_SETTINGS}
-    <h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Settings</h2></div>""",
+    f'<div style="display:flex;align-items:center;">{ICON_SETTINGS}'
+    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Settings</h2></div>',
     unsafe_allow_html=True,
 )
 
-# --- Save & Load ---
-st.sidebar.markdown(
-    f"""<div style="display:flex;align-items:center;margin-top:10px;">{ICON_UPLOAD}
-    <span style="font-size:1rem;font-weight:600;margin-left:5px;">Save & Load Analysis</span></div>""",
-    unsafe_allow_html=True,
-)
-
-SAVE_KEYS = [
-    "users_c", "conv_c", "rev_c", "prod_c",
-    "users_v", "conv_v", "rev_v", "prod_v",
-    "days", "conf_level",
-    "s1_uc", "s1_cc", "s1_uv", "s1_cv",
-    "s2_uc", "s2_cc", "s2_uv", "s2_cv",
-]
-
-with st.sidebar.expander("Manage Files", expanded=False):
-    st.info(
-        "Snapshot your experiment mid-run. Download on Day 7, re-upload on Day 14 to "
-        "compare how Bayesian probability and risk evolve without re-entering data."
-    )
+with st.sidebar.expander("Save & Load Analysis", expanded=False):
+    st.info("Snapshot your experiment. Download Day 7, re-upload Day 14 to track evolution.")
     snapshot = {k: st.session_state.get(k) for k in SAVE_KEYS}
-    st.download_button(
-        label="Download Inputs (.json)",
-        data=json.dumps(snapshot, indent=2),
-        file_name="experiment_snapshot.json",
-        mime="application/json",
-    )
+    st.download_button("Download Inputs (.json)", json.dumps(snapshot, indent=2),
+                       "experiment_snapshot.json", "application/json")
     uploaded = st.file_uploader("Load Snapshot", type=["json"])
     if uploaded is not None:
         try:
             loaded = json.load(uploaded)
-            # Only restore known keys to prevent state pollution
             for k in SAVE_KEYS:
                 if k in loaded:
                     st.session_state[k] = loaded[k]
-            st.success("Snapshot loaded successfully!")
+            st.success("Snapshot loaded!")
             st.rerun()
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             st.error(f"Could not load file: {e}")
 
-# --- Confidence Level ---
 confidence_level = st.sidebar.selectbox(
-    "Confidence Level",
-    ["95%", "90%", "99%"],
-    index=0,
-    key="conf_level",
-    help=(
-        "⚡ 90% — Fast decisions: colours, copy, low-risk UI tweaks.\n"
-        "⚖️ 95% — Standard: features, flows, layouts.\n"
-        "🐢 99% — High-stakes: pricing, checkout, backend algorithms."
-    ),
+    "Confidence Level", ["95%", "90%", "99%"], index=0, key="conf_level",
+    help="⚡ 90% — Fast decisions  |  ⚖️ 95% — Standard  |  🐢 99% — High-stakes",
 )
 alpha = {"90%": 0.10, "95%": 0.05, "99%": 0.01}[confidence_level]
 
 st.sidebar.markdown("---")
 
-# -----------------------------------------------
-# SIDEBAR — EXPERIMENT PLANNING
-# -----------------------------------------------
+# --- Experiment Planning ---
 st.sidebar.markdown(
-    f"""<div style="display:flex;align-items:center;">{ICON_CALENDAR}
-    <h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Experiment Planning</h2></div>""",
+    f'<div style="display:flex;align-items:center;">{ICON_CALENDAR}'
+    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Experiment Planning</h2></div>',
     unsafe_allow_html=True,
 )
-
 with st.sidebar.expander("Sample Size Calculator", expanded=False):
     st.caption(f"Plan required traffic at {confidence_level} confidence, 80% power.")
-
-    plan_traffic = st.number_input("Traffic (Last 28 Days)", step=1000, key="p_traffic")
-    plan_base_cr = st.number_input("Baseline Conversion Rate (%)", step=0.1, key="p_base_cr")
-    plan_base_aov = st.number_input("Baseline AOV ($)", step=1.0, key="p_base_aov")
-    plan_mde = st.number_input("Min Detectable Effect (%)", step=0.5, key="p_mde")
-    volatility = st.selectbox(
-        "Revenue Variance",
+    plan_traffic  = st.number_input("Traffic (Last 28 Days)", step=1000,  key="p_traffic")
+    plan_base_cr  = st.number_input("Baseline CR (%)",        step=0.1,   key="p_base_cr")
+    plan_base_aov = st.number_input("Baseline AOV ($)",       step=1.0,   key="p_base_aov")
+    plan_mde      = st.number_input("Min Detectable Effect (%)", step=0.5, key="p_mde")
+    volatility    = st.selectbox("Revenue Variance",
         ["Low (Subscription)", "Medium (Standard E-com)", "High (Whales/B2B)"],
-        index=1,
-        key="p_vol",
-    )
-    sd_multiplier = {"Low": 1.0, "Medium": 2.0, "High": 3.0}[volatility.split()[0]]
-
+        index=1, key="p_vol")
+    sd_mult = {"Low": 1.0, "Medium": 2.0, "High": 3.0}[volatility.split()[0]]
     if st.button("Calculate Duration"):
         if plan_base_cr <= 0 or plan_base_aov <= 0 or plan_traffic <= 0:
-            st.error("Traffic, Baseline CR, and AOV must all be greater than 0.")
+            st.error("Traffic, Baseline CR, and AOV must all be > 0.")
         else:
-            daily_traffic = plan_traffic / 28
-            p1 = plan_base_cr / 100
-            p2 = p1 * (1 + plan_mde / 100)
-
-            # Conversion rate sample size
-            es_cr = proportion_effectsize(p1, p2)
-            n_cr = NormalIndPower().solve_power(effect_size=es_cr, alpha=alpha, power=0.8, ratio=1)
-
-            # Revenue (RPV) sample size
-            est_sd = plan_base_aov * sd_multiplier
-            es_rpv = safe_divide(plan_base_aov * plan_mde / 100, est_sd)
+            daily   = plan_traffic / 28
+            p1      = plan_base_cr / 100
+            p2      = p1 * (1 + plan_mde / 100)
+            es_cr   = proportion_effectsize(p1, p2)
+            n_cr    = NormalIndPower().solve_power(effect_size=es_cr, alpha=alpha, power=0.8, ratio=1)
+            est_sd  = plan_base_aov * sd_mult
+            es_rpv  = safe_divide(plan_base_aov * plan_mde / 100, est_sd)
             if es_rpv > 0:
-                n_rpv = TTestIndPower().solve_power(effect_size=es_rpv, alpha=alpha, power=0.8, ratio=1)
-                n_rpv_visitors = safe_divide(n_rpv, p1)
-                days_rpv = safe_divide(n_rpv_visitors * 2, daily_traffic)
+                n_rpv     = TTestIndPower().solve_power(effect_size=es_rpv, alpha=alpha, power=0.8, ratio=1)
+                n_rpv_vis = safe_divide(n_rpv, p1)
+                days_rpv  = safe_divide(n_rpv_vis * 2, daily)
             else:
-                n_rpv_visitors, days_rpv = 0, 0
-
-            days_cr = safe_divide(n_cr * 2, daily_traffic)
-
+                n_rpv_vis, days_rpv = 0, 0
+            days_cr = safe_divide(n_cr * 2, daily)
             st.markdown("---")
-            st.write(f"**Daily Traffic:** {int(daily_traffic):,} users")
-            st.info(f"**Conversion Rate:** {int(days_cr)} days needed ({int(n_cr):,} users/group)")
-            fn = st.error if days_rpv > 60 else st.warning
-            fn(f"**Revenue (RPV):** {int(days_rpv)} days needed ({int(n_rpv_visitors):,} users/group)")
+            st.write(f"**Daily Traffic:** {int(daily):,}")
+            st.info(f"**CR:** {int(days_cr)} days ({int(n_cr):,} users/group)")
+            (st.error if days_rpv > 60 else st.warning)(
+                f"**RPV:** {int(days_rpv)} days ({int(n_rpv_vis):,} users/group)")
 
 st.sidebar.markdown("---")
 
-# -----------------------------------------------
-# SIDEBAR — DATA INPUTS
-# -----------------------------------------------
+# --- Data Inputs ---
 st.sidebar.markdown(
-    f"""<div style="display:flex;align-items:center;">{ICON_TROPHY}
-    <h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Enter Results</h2></div>""",
+    f'<div style="display:flex;align-items:center;">{ICON_TROPHY}'
+    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Enter Results</h2></div>',
     unsafe_allow_html=True,
 )
-st.sidebar.caption("Input your experiment data below.")
+
+num_variations = st.sidebar.number_input(
+    "Number of Variation Groups", min_value=1, max_value=MAX_VARIATIONS, key="num_variations",
+    help="1 = classic A/B. Add up to 3 variations for A/B/n testing.",
+)
 
 st.sidebar.subheader("Control Group")
-users_control = st.sidebar.number_input("Control Users", min_value=1, key="users_c")
-conv_control = st.sidebar.number_input("Control Conversions", min_value=0, key="conv_c")
-rev_control = st.sidebar.number_input("Control Revenue ($)", min_value=0.0, key="rev_c")
-prod_control = st.sidebar.number_input("Control Products Sold", min_value=0, key="prod_c")
+users_c = st.sidebar.number_input("Users",         min_value=1,   key="users_c")
+conv_c  = st.sidebar.number_input("Conversions",   min_value=0,   key="conv_c")
+rev_c   = st.sidebar.number_input("Revenue ($)",   min_value=0.0, key="rev_c")
+prod_c  = st.sidebar.number_input("Products Sold", min_value=0,   key="prod_c")
 
-st.sidebar.markdown("---")
-
-st.sidebar.subheader("Variation Group")
-users_variation = st.sidebar.number_input("Variation Users", min_value=1, key="users_v")
-conv_variation = st.sidebar.number_input("Variation Conversions", min_value=0, key="conv_v")
-rev_variation = st.sidebar.number_input("Variation Revenue ($)", min_value=0.0, key="rev_v")
-prod_variation = st.sidebar.number_input("Variation Products Sold", min_value=0, key="prod_v")
+VAR_LABELS = ["Variation A", "Variation B", "Variation C"]
+var_inputs = []
+for i in range(int(num_variations)):
+    st.sidebar.markdown("---")
+    st.sidebar.subheader(VAR_LABELS[i])
+    var_inputs.append({
+        "name":  VAR_LABELS[i],
+        "users": st.sidebar.number_input("Users",         min_value=1,   key=f"users_v{i}"),
+        "conv":  st.sidebar.number_input("Conversions",   min_value=0,   key=f"conv_v{i}"),
+        "rev":   st.sidebar.number_input("Revenue ($)",   min_value=0.0, key=f"rev_v{i}"),
+        "prod":  st.sidebar.number_input("Products Sold", min_value=0,   key=f"prod_v{i}"),
+    })
 
 st.sidebar.markdown("---")
 days_run = st.sidebar.number_input("Days Test Ran", min_value=1, key="days")
 
+if num_variations > 1:
+    st.sidebar.markdown("---")
+    st.sidebar.selectbox(
+        "Multiple Comparison Correction",
+        options=["holm", "bonferroni", "fdr_bh"],
+        format_func=lambda x: {
+            "holm":       "Holm-Bonferroni (recommended)",
+            "bonferroni": "Bonferroni (most conservative)",
+            "fdr_bh":     "Benjamini-Hochberg (FDR)",
+        }[x],
+        key="mc_method",
+        help=(
+            "Holm: Controls FWER, more powerful than Bonferroni. Best for most tests.\n"
+            "Bonferroni: Most conservative — use when false positives are very costly.\n"
+            "FDR (B-H): Controls false discovery rate — best for exploratory multi-variant tests."
+        ),
+    )
+mc_method = st.session_state.get("mc_method", "holm")
 
-# -----------------------------------------------
-# CORE METRIC CALCULATIONS
-# -----------------------------------------------
-rate_c = safe_divide(conv_control, users_control)
-rate_v = safe_divide(conv_variation, users_variation)
-uplift_cr = calculate_uplift(rate_c, rate_v)
 
-aov_c = safe_divide(rev_control, conv_control)
-aov_v = safe_divide(rev_variation, conv_variation)
-uplift_aov = calculate_uplift(aov_c, aov_v)
+# ============================================================
+# BUILD GROUPS & RUN ANALYSIS
+# ============================================================
+groups = [{"name": "Control", "users": users_c, "conv": conv_c, "rev": rev_c, "prod": prod_c}] + var_inputs
 
-rpv_c = safe_divide(rev_control, users_control)
-rpv_v = safe_divide(rev_variation, users_variation)
-uplift_rpv = calculate_uplift(rpv_c, rpv_v)
+mv      = run_multivariate_analysis(groups, alpha, mc_method)
+bayes   = calculate_bayesian_multivariate(groups)
+srm_stat, p_srm = perform_srm_test([g["users"] for g in groups])
 
-apo_c = safe_divide(prod_control, conv_control)
-apo_v = safe_divide(prod_variation, conv_variation)
-uplift_apo = calculate_uplift(apo_c, apo_v)
+ctrl_m  = mv["metrics"][0]
+# Best variation by CR (used for bootstrap, revenue sig, etc.)
+best_m  = max(mv["metrics"][1:], key=lambda m: m["cr"]) if len(mv["metrics"]) > 1 else ctrl_m
+best_g  = next(g for g in groups if g["name"] == best_m["name"])
 
-apu_c = safe_divide(prod_control, users_control)
-apu_v = safe_divide(prod_variation, users_variation)
-uplift_apu = calculate_uplift(apu_c, apu_v)
-
-# Statistical tests
-z_stat, p_value_z = proportions_ztest(
-    [conv_control, conv_variation],
-    [users_control, users_variation],
-)
-srm_stat, p_value_srm = perform_srm_test([users_control, users_variation])
-
-# Revenue significance tests (AOV + RPV)
-# Note: runs on every rerender; results are fast (~0.2s) due to n_bootstrap=2000
 rev_sig = test_revenue_significance(
-    users_control, conv_control, rev_control,
-    users_variation, conv_variation, rev_variation,
+    users_c, conv_c, rev_c,
+    best_g["users"], best_g["conv"], best_g["rev"],
     alpha=alpha,
 )
 
 
-# -----------------------------------------------
+# ============================================================
 # MAIN DASHBOARD
-# -----------------------------------------------
-st.title("A/B Test Analyzer v1.82c")
-
+# ============================================================
+st.title("Enterprise A/B Test Analyzer")
 render_header(ICON_BAR_CHART, "Results Summary")
 
+# Omnibus banner (only meaningful for multi-variant)
+if num_variations > 1:
+    if mv["p_global"] <= alpha:
+        st.success(
+            f"🔬 **Omnibus χ² Test:** At least one variant differs significantly "
+            f"(p = {mv['p_global']:.4f}). Pairwise results use **{mc_method.upper()}** correction."
+        )
+    else:
+        st.info(f"🔬 **Omnibus χ² Test:** No significant overall difference (p = {mv['p_global']:.4f}).")
+
+# --- KPI Table ---
 st.subheader("1. Primary KPIs")
-col1, col2, col3 = st.columns(3)
-col1.metric("Conversion Rate", f"{rate_v*100:.2f}%", f"{uplift_cr:+.2f}%")
-col2.metric("Revenue Per Visitor", f"${rpv_v:.2f}", f"{uplift_rpv:+.2f}%")
-col3.metric("Avg Order Value", f"${aov_v:.2f}", f"{uplift_aov:+.2f}%")
+kpi_rows = []
+for m in mv["metrics"]:
+    pw = next((p for p in mv["pairwise"] if p["name"] == m["name"]), None)
+    kpi_rows.append({
+        "Group":       m["name"],
+        "Users":       f"{m['users']:,}",
+        "Conv Rate":   f"{m['cr_pct']:.2f}%",
+        "CR Uplift":   f"{m['uplift_cr']:+.2f}%" if pw else "—",
+        "RPV":         f"${m['rpv']:.2f}",
+        "RPV Uplift":  f"{m['uplift_rpv']:+.2f}%" if pw else "—",
+        "AOV":         f"${m['aov']:.2f}",
+        "p (adj)":     f"{pw['p_adjusted']:.4f}" if pw else "—",
+        "Significant": ("✅" if pw["significant"] else "❌") if pw else "—",
+    })
+st.dataframe(pd.DataFrame(kpi_rows), use_container_width=True, hide_index=True)
 
-# Significance badges — one per metric
-sig_col1, sig_col2, sig_col3 = st.columns(3)
-if p_value_z <= alpha:
-    sig_col1.success(f"CR: Significant ✅ (p={p_value_z:.4f})")
+# Winner callout
+if mv["winner"]:
+    st.success(f"🏆 **Winner: {mv['winner']}** — highest significant CR uplift after {mc_method.upper()} correction.")
 else:
-    sig_col1.info(f"CR: Not Significant (p={p_value_z:.4f})")
+    st.warning("No variant has achieved a statistically significant positive uplift yet.")
 
-rpv_res = rev_sig["rpv"]
-if rpv_res["sig"]:
-    rpv_label = f"RPV: Significant ✅ (MW p={rpv_res['mw_p']:.4f})"
-    sig_col2.success(rpv_label)
-else:
-    sig_col2.info(f"RPV: Not Significant (MW p={rpv_res['mw_p']:.4f})")
-
-aov_res = rev_sig["aov"]
-if aov_res["sig"]:
-    sig_col3.success(f"AOV: Significant ✅ (MW p={aov_res['mw_p']:.4f})")
-else:
-    sig_col3.info(f"AOV: Not Significant (MW p={aov_res['mw_p']:.4f})")
-
+# --- Product Velocity ---
 st.subheader("2. Product Velocity")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Avg Products / Order", f"{apo_v:.2f}", f"{uplift_apo:+.2f}%")
-col2.metric("Avg Products / User", f"{apu_v:.2f}", f"{uplift_apu:+.2f}%")
-col4.caption("Higher 'Products / Order' means users are building bigger baskets.")
+pv_rows = []
+for m in mv["metrics"]:
+    apo_up = safe_divide((m["apo"] - ctrl_m["apo"]) * 100, ctrl_m["apo"]) if m["name"] != "Control" else None
+    pv_rows.append({
+        "Group": m["name"],
+        "Avg Products / Order": f"{m['apo']:.2f}",
+        "Avg Products / User":  f"{m['apu']:.2f}",
+        "APO Uplift":           f"{apo_up:+.2f}%" if apo_up is not None else "—",
+    })
+st.dataframe(pd.DataFrame(pv_rows), use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
+# --- Executive Interpretation ---
 st.subheader("3. Executive Interpretation")
-if uplift_cr > 0 and uplift_aov < 0:
-    st.warning("Trade-off Detected: Variation drives MORE orders but SMALLER baskets.")
-elif uplift_cr < 0 and uplift_aov > 0:
-    st.warning("Trade-off Detected: Variation drives FEWER orders but BIGGER baskets.")
-else:
-    st.success("Clean Result: Conversion and order value trends are consistent.")
+lead_pw = mv["pairwise"][0] if mv["pairwise"] else None
+if lead_pw:
+    if lead_pw["uplift_cr"] > 0 and lead_pw["uplift_aov"] < 0:
+        st.warning("Trade-off: Leading variant drives MORE conversions but SMALLER baskets.")
+    elif lead_pw["uplift_cr"] < 0 and lead_pw["uplift_aov"] > 0:
+        st.warning("Trade-off: Leading variant drives FEWER conversions but BIGGER baskets.")
+    else:
+        st.success("Clean Result: CR and AOV trends are consistent for the leading variant.")
 
-if uplift_rpv >= 0:
-    st.write(f"**Financial Impact:** Variation generates **${rpv_v - rpv_c:.2f} more** per visitor.")
-else:
-    st.write(f"**Financial Impact:** Variation generates **${rpv_c - rpv_v:.2f} less** per visitor.")
+rpv_delta = best_m["rpv"] - ctrl_m["rpv"]
+direction = "more" if rpv_delta >= 0 else "less"
+st.write(f"**Financial Impact ({best_m['name']}):** ${abs(rpv_delta):.2f} {direction} per visitor.")
 
-# Revenue significance detail expander
-with st.expander("📊 Revenue Significance Detail (AOV & RPV)", expanded=False):
+# Revenue significance expander
+with st.expander(f"📊 Revenue Significance — Control vs {best_m['name']}", expanded=False):
     st.caption(
-        "Revenue metrics are skewed by high-value orders, so a standard z-test is unreliable. "
-        "This section uses two robust methods: **Mann-Whitney U** (non-parametric rank test) "
-        "and a **log-transformed bootstrap CI** on the mean difference. "
-        "Because we reconstruct distributions from aggregate totals rather than raw order data, "
-        "treat these as strong directional signals rather than exact p-values."
+        "Revenue is skewed by large orders — z-tests are unreliable. "
+        "Uses Mann-Whitney U and log-transformed bootstrap. "
+        "Distributions are reconstructed from aggregates — treat as directional signals."
     )
     st.markdown("---")
-    r1, r2 = st.columns(2)
+    rc1, rc2 = st.columns(2)
+    for col, label, key, delta in [
+        (rc1, "Revenue Per Visitor (RPV)", "rpv", best_m["rpv"] - ctrl_m["rpv"]),
+        (rc2, "Average Order Value (AOV)",  "aov", best_m["aov"] - ctrl_m["aov"]),
+    ]:
+        with col:
+            st.markdown(f"#### {label}")
+            res = rev_sig[key]
+            ma, mb = st.columns(2)
+            ma.metric("Observed Δ", f"${delta:+.3f}")
+            mb.metric("MW p-value", f"{res['mw_p']:.4f}")
+            if res["mw_sig"]:
+                st.success(f"✅ Mann-Whitney: Significant at {alpha*100:.0f}%")
+            else:
+                st.info(f"Mann-Whitney: Not significant (p={res['mw_p']:.4f})")
+            if res["boot_sig"]:
+                st.success(f"✅ Bootstrap: Significant (p={res['boot_p']:.4f})")
+            else:
+                st.info(f"Bootstrap: Not significant (p={res['boot_p']:.4f})")
+            cl, ch = res["boot_ci_low"], res["boot_ci_high"]
+            colour = "green" if cl > 0 else ("red" if ch < 0 else "orange")
+            st.markdown(
+                f"**{int((1-alpha)*100)}% CI on Δ:** "
+                f"<span style='color:{colour}'>${cl:.3f} to ${ch:.3f}</span>",
+                unsafe_allow_html=True,
+            )
+            if cl > 0:   st.success("CI entirely positive — gain is consistent.")
+            elif ch < 0: st.error("CI entirely negative — loss is consistent.")
+            else:        st.warning("CI crosses zero — result is uncertain.")
 
-    with r1:
-        st.markdown("#### Revenue Per Visitor (RPV)")
-        rpv_r = rev_sig["rpv"]
-        ci_low_rpv = rpv_r["boot_ci_low"]
-        ci_high_rpv = rpv_r["boot_ci_high"]
-        rpv_delta = rpv_v - rpv_c
-
-        m1, m2 = st.columns(2)
-        m1.metric("Observed Δ RPV", f"${rpv_delta:+.3f}")
-        m2.metric("Mann-Whitney p", f"{rpv_r['mw_p']:.4f}")
-
-        if rpv_r["mw_sig"]:
-            st.success(f"✅ Mann-Whitney: **Significant** at {alpha*100:.0f}% level")
-        else:
-            st.info(f"Mann-Whitney: Not significant (p={rpv_r['mw_p']:.4f})")
-
-        if rpv_r["boot_sig"]:
-            st.success(f"✅ Bootstrap: **Significant** (p={rpv_r['boot_p']:.4f})")
-        else:
-            st.info(f"Bootstrap: Not significant (p={rpv_r['boot_p']:.4f})")
-
-        ci_colour = "green" if ci_low_rpv > 0 else ("red" if ci_high_rpv < 0 else "orange")
-        st.markdown(
-            f"**Bootstrap {int((1-alpha)*100)}% CI on Δ RPV:** "
-            f"<span style='color:{ci_colour}'>${ci_low_rpv:.3f} to ${ci_high_rpv:.3f}</span>",
-            unsafe_allow_html=True,
-        )
-        if ci_low_rpv > 0:
-            st.success("CI entirely positive — revenue gain is consistent.")
-        elif ci_high_rpv < 0:
-            st.error("CI entirely negative — revenue loss is consistent.")
-        else:
-            st.warning("CI crosses zero — result is uncertain.")
-
-    with r2:
-        st.markdown("#### Average Order Value (AOV)")
-        aov_r = rev_sig["aov"]
-        ci_low_aov = aov_r["boot_ci_low"]
-        ci_high_aov = aov_r["boot_ci_high"]
-        aov_delta = aov_v - aov_c
-
-        m1, m2 = st.columns(2)
-        m1.metric("Observed Δ AOV", f"${aov_delta:+.3f}")
-        m2.metric("Mann-Whitney p", f"{aov_r['mw_p']:.4f}")
-
-        if aov_r["mw_sig"]:
-            st.success(f"✅ Mann-Whitney: **Significant** at {alpha*100:.0f}% level")
-        else:
-            st.info(f"Mann-Whitney: Not significant (p={aov_r['mw_p']:.4f})")
-
-        if aov_r["boot_sig"]:
-            st.success(f"✅ Bootstrap: **Significant** (p={aov_r['boot_p']:.4f})")
-        else:
-            st.info(f"Bootstrap: Not significant (p={aov_r['boot_p']:.4f})")
-
-        ci_colour = "green" if ci_low_aov > 0 else ("red" if ci_high_aov < 0 else "orange")
-        st.markdown(
-            f"**Bootstrap {int((1-alpha)*100)}% CI on Δ AOV:** "
-            f"<span style='color:{ci_colour}'>${ci_low_aov:.3f} to ${ci_high_aov:.3f}</span>",
-            unsafe_allow_html=True,
-        )
-        if ci_low_aov > 0:
-            st.success("CI entirely positive — order value gain is consistent.")
-        elif ci_high_aov < 0:
-            st.error("CI entirely negative — order value loss is consistent.")
-        else:
-            st.warning("CI crosses zero — result is uncertain.")
-
+# --- Health Checks ---
 st.subheader("4. Health Checks")
-col1, col2 = st.columns(2)
-with col1:
-    if p_value_srm < 0.01:
-        st.error(f"⚠️ SRM DETECTED (p={p_value_srm:.4f}) — traffic split is uneven. Results may be invalid.")
+hc1, hc2 = st.columns(2)
+with hc1:
+    if p_srm < 0.01:
+        st.error(f"⚠️ SRM DETECTED (p={p_srm:.4f}) — traffic split uneven. Results may be invalid.")
     else:
-        st.success(f"✅ SRM PASSED (p={p_value_srm:.4f})")
-with col2:
+        st.success(f"✅ SRM PASSED (p={p_srm:.4f})")
+with hc2:
     if days_run < 7:
-        st.error(f"⚠️ Too Short ({days_run} days) — results are unreliable.")
+        st.error(f"⚠️ Too short ({days_run} days) — results unreliable.")
     elif days_run < 14:
-        st.warning(f"⚠️ Short Duration ({days_run} days) — watch for novelty effects.")
+        st.warning(f"⚠️ Short duration ({days_run} days) — watch for novelty effects.")
     else:
         st.success(f"✅ Duration OK ({days_run} days)")
 
 st.markdown("---")
 
-# -----------------------------------------------
-# SIMPSON'S PARADOX DETECTOR
-# -----------------------------------------------
+# ============================================================
+# SIMPSON'S PARADOX
+# ============================================================
 render_header(ICON_PIE, "Advanced: Simpson's Paradox Detector", level=3)
-
 with st.expander("Expand to check segments (e.g. Mobile vs Desktop)", expanded=False):
     st.caption("Detects when segment-level trends contradict the aggregate result.")
-    col_s1, col_s2 = st.columns(2)
-    with col_s1:
-        st.subheader("Segment 1 (e.g. Mobile)")
-        s1_uc = st.number_input("Control Users", min_value=0, key="s1_uc")
-        s1_cc = st.number_input("Control Conv.", min_value=0, key="s1_cc")
-        s1_uv = st.number_input("Var Users", min_value=0, key="s1_uv")
-        s1_cv = st.number_input("Var Conv.", min_value=0, key="s1_cv")
-    with col_s2:
-        st.subheader("Segment 2 (e.g. Desktop)")
-        s2_uc = st.number_input("Control Users", min_value=0, key="s2_uc")
-        s2_cc = st.number_input("Control Conv.", min_value=0, key="s2_cc")
-        s2_uv = st.number_input("Var Users", min_value=0, key="s2_uv")
-        s2_cv = st.number_input("Var Conv.", min_value=0, key="s2_cv")
-
+    sc1, sc2 = st.columns(2)
+    with sc1:
+        st.subheader("Segment 1")
+        s1_uc = st.number_input("Control Users",  min_value=0, key="s1_uc")
+        s1_cc = st.number_input("Control Conv.",  min_value=0, key="s1_cc")
+        s1_uv = st.number_input("Var Users",      min_value=0, key="s1_uv")
+        s1_cv = st.number_input("Var Conv.",       min_value=0, key="s1_cv")
+    with sc2:
+        st.subheader("Segment 2")
+        s2_uc = st.number_input("Control Users",  min_value=0, key="s2_uc")
+        s2_cc = st.number_input("Control Conv.",  min_value=0, key="s2_cc")
+        s2_uv = st.number_input("Var Users",      min_value=0, key="s2_uv")
+        s2_cv = st.number_input("Var Conv.",       min_value=0, key="s2_cv")
     if st.button("Check for Paradox"):
-        seg1 = {"users_c": s1_uc, "conv_c": s1_cc, "users_v": s1_uv, "conv_v": s1_cv}
-        seg2 = {"users_c": s2_uc, "conv_c": s2_cc, "users_v": s2_uv, "conv_v": s2_cv}
-        is_paradox, up1, up2, up_agg = check_simpsons_paradox(seg1, seg2)
-
+        paradox, up1, up2, up_agg = check_simpsons_paradox(
+            {"users_c": s1_uc, "conv_c": s1_cc, "users_v": s1_uv, "conv_v": s1_cv},
+            {"users_c": s2_uc, "conv_c": s2_cc, "users_v": s2_uv, "conv_v": s2_cv},
+        )
         st.markdown("---")
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Segment 1 Uplift", f"{up1:.2f}%")
-        m2.metric("Segment 2 Uplift", f"{up2:.2f}%")
-        m3.metric("Combined Uplift", f"{up_agg:.2f}%")
-
-        if is_paradox:
-            st.error("🚨 SIMPSON'S PARADOX DETECTED! Segment trends contradict the aggregate result.")
-            st.warning("Trust the segment data. The aggregate result is misleading due to traffic imbalances.")
+        pm1, pm2, pm3 = st.columns(3)
+        pm1.metric("Segment 1 Uplift", f"{up1:.2f}%")
+        pm2.metric("Segment 2 Uplift", f"{up2:.2f}%")
+        pm3.metric("Combined Uplift",  f"{up_agg:.2f}%")
+        if paradox:
+            st.error("🚨 SIMPSON'S PARADOX DETECTED!")
+            st.warning("Trust segment data — aggregate result is misleading due to imbalance.")
         else:
-            st.success("✅ No Paradox Detected. Trends are consistent across segments.")
+            st.success("✅ No paradox. Trends are consistent across segments.")
 
 st.markdown("---")
 
-# -----------------------------------------------
+# ============================================================
 # DEEP DIVE TABS
-# -----------------------------------------------
+# ============================================================
 render_header(ICON_BRAIN, "Deep Dive Analysis")
 
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
@@ -900,39 +898,20 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "CR Comparison", "Bayesian", "Bootstrap", "Box Plot",
 ])
 
-# --- TAB 1: SMART ANALYSIS ---
+# ---- TAB 1: SMART ANALYSIS ----
 with tab1:
     st.markdown("### Auto-Analyst Report")
     st.info("Instant rule-based analysis — no API key required.")
-    user_hypothesis = st.text_area(
-        "Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart"
-    )
+    hyp_smart = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Report"):
-        ci_low_abs, ci_high_abs = proportion_confint(
-            conv_variation, users_variation, alpha=alpha, method="normal"
-        )
-        diff_ci_low = (ci_low_abs - rate_c) * 100
-        diff_ci_high = (ci_high_abs - rate_c) * 100
-        prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
-            conv_control + 1, users_control - conv_control + 1,
-            conv_variation + 1, users_variation - conv_variation + 1,
-        )
-        metrics_payload = {
-            "days": days_run, "users_c": users_control, "users_v": users_variation,
-            "p_srm": p_value_srm, "cr_c": rate_c * 100, "cr_v": rate_v * 100,
-            "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov,
-            "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
-            "ci_low": diff_ci_low, "ci_high": diff_ci_high,
-            "uplift_apo": uplift_apo,
-            "prob_v_wins": prob_v_wins * 100,
-            "loss_v": loss_v * 100, "loss_c": loss_c * 100,
-            "alpha": alpha,
+        smart_payload = {
+            "days": days_run,
+            "p_srm": p_srm,
         }
         st.markdown("---")
-        st.markdown(generate_smart_analysis(user_hypothesis, metrics_payload, alpha))
+        st.markdown(generate_smart_analysis(hyp_smart, mv, bayes, smart_payload, alpha))
 
-# --- TAB 2: AI ANALYSIS ---
+# ---- TAB 2: AI ANALYSIS ----
 with tab2:
     st.markdown("### AI-Powered Analysis")
     col_prov, col_key = st.columns(2)
@@ -940,125 +919,119 @@ with tab2:
         ai_provider = st.selectbox("Provider", ["OpenAI (GPT-4o)", "DeepSeek (R1)"])
     with col_key:
         api_key_input = st.text_input("API Key", type="password")
-    user_hypothesis_ai = st.text_area(
-        "Hypothesis:", placeholder="We believed that...", height=100, key="hyp_ai"
-    )
+    hyp_ai = st.text_area("Hypothesis:", placeholder="We believed that...", height=100, key="hyp_ai")
     if st.button("Generate AI Analysis"):
         ci_low_abs, ci_high_abs = proportion_confint(
-            conv_variation, users_variation, alpha=alpha, method="normal"
+            best_m["conv"], best_m["users"], alpha=alpha, method="normal"
         )
-        diff_ci_low = (ci_low_abs - rate_c) * 100
-        diff_ci_high = (ci_high_abs - rate_c) * 100
-        prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
-            conv_control + 1, users_control - conv_control + 1,
-            conv_variation + 1, users_variation - conv_variation + 1,
-        )
-        metrics_payload = {
-            "days": days_run, "users_c": users_control, "users_v": users_variation,
-            "p_srm": p_value_srm, "cr_c": rate_c * 100, "cr_v": rate_v * 100,
-            "uplift_cr": uplift_cr, "p_cr": p_value_z,
-            "aov_c": aov_c, "aov_v": aov_v, "uplift_aov": uplift_aov,
-            "rpv_c": rpv_c, "rpv_v": rpv_v, "uplift_rpv": uplift_rpv,
-            "ci_low": diff_ci_low, "ci_high": diff_ci_high,
-            "prob_v_wins": prob_v_wins * 100,
-            "loss_v": loss_v * 100, "loss_c": loss_c * 100,
-            "rpv_mw_p": rev_sig["rpv"]["mw_p"], "rpv_sig": rev_sig["rpv"]["sig"],
-            "rpv_boot_ci_low": rev_sig["rpv"]["boot_ci_low"], "rpv_boot_ci_high": rev_sig["rpv"]["boot_ci_high"],
-            "aov_mw_p": rev_sig["aov"]["mw_p"], "aov_sig": rev_sig["aov"]["sig"],
-            "aov_boot_ci_low": rev_sig["aov"]["boot_ci_low"], "aov_boot_ci_high": rev_sig["aov"]["boot_ci_high"],
+        ai_payload = {
+            "num_variations": int(num_variations),
+            "correction_method": mc_method,
+            "days": days_run,
+            "p_srm": p_srm,
+            "omnibus_p": mv["p_global"],
+            "winner": mv["winner"],
+            "pairwise_results": mv["pairwise"],
+            "per_group_metrics": [
+                {k: v for k, v in m.items() if k not in ["cr", "aov", "rpv", "apo", "apu"]}
+                for m in mv["metrics"]
+            ],
+            "bayesian_prob_best":   bayes["prob_best"],
+            "bayesian_exp_loss":    bayes["expected_loss"],
+            "rpv_sig":  rev_sig["rpv"]["sig"],  "rpv_mw_p":  rev_sig["rpv"]["mw_p"],
+            "rpv_boot_ci": [rev_sig["rpv"]["boot_ci_low"], rev_sig["rpv"]["boot_ci_high"]],
+            "aov_sig":  rev_sig["aov"]["sig"],  "aov_mw_p":  rev_sig["aov"]["mw_p"],
+            "aov_boot_ci": [rev_sig["aov"]["boot_ci_low"], rev_sig["aov"]["boot_ci_high"]],
         }
         provider_name = "DeepSeek" if "DeepSeek" in ai_provider else "OpenAI"
         with st.spinner(f"Connecting to {provider_name}..."):
             ai_result = get_ai_analysis(
-                api_key_input, user_hypothesis_ai, metrics_payload,
+                api_key_input, hyp_ai, ai_payload,
                 provider=provider_name, conf_level=confidence_level,
             )
         st.markdown("---")
         st.markdown(ai_result)
 
-# --- TAB 3: STOPPING & SEQUENTIAL ---
+# ---- TAB 3: STOPPING & SEQUENTIAL ----
 with tab3:
-    st.markdown("### Stopping Rules & Sequential Testing")
-    prob_v_wins, loss_v, loss_c = calculate_bayesian_risk(
-        conv_control + 1, users_control - conv_control + 1,
-        conv_variation + 1, users_variation - conv_variation + 1,
-    )
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Probability Variation is Best", f"{prob_v_wins*100:.1f}%")
-    c2.metric("Risk if You Switch", f"{loss_v*100:.5f}%")
-    c3.metric("Risk if You Stay", f"{loss_c*100:.5f}%")
+    st.markdown("### Bayesian Stopping Rules")
+    prob_cols = st.columns(len(groups))
+    for i, g in enumerate(groups):
+        prob  = bayes["prob_best"].get(g["name"], 0)
+        loss  = bayes["expected_loss"].get(g["name"], 0)
+        prob_cols[i].metric(f"{g['name']} — P(Best)", f"{prob*100:.1f}%")
+        prob_cols[i].caption(f"Expected loss: {loss*100:.5f}%")
 
     st.markdown("---")
     st.subheader("Sequential Testing / Peeking Penalty")
     st.caption(
-        "Checking results repeatedly inflates your false positive rate. "
-        "This calculator penalises your alpha accordingly. "
-        "Note: this uses a custom log-based approximation — for production use, "
-        "consider O'Brien-Fleming or Pocock alpha-spending functions."
+        "Repeated checks inflate the false positive rate. "
+        "This log-based approximation adjusts your alpha threshold. "
+        "For production use, consider O'Brien-Fleming or Pocock alpha-spending."
     )
     peeks = st.number_input("How many times have you checked results?", min_value=1, value=1)
-    # Custom approximation: alpha is penalised log-linearly as peeks increase
-    adjusted_alpha = alpha * np.log(1 + (np.e - 1) / peeks)
-    st.write(f"Standard threshold: **{alpha}** → Adjusted threshold: **{adjusted_alpha:.5f}**")
-    if p_value_z < adjusted_alpha:
-        st.success(f"✅ SIGNIFICANT after peeking penalty (p={p_value_z:.4f})")
-    else:
-        st.error(f"❌ NOT SIGNIFICANT after peeking penalty (p={p_value_z:.4f})")
+    adj_alpha = alpha * np.log(1 + (np.e - 1) / peeks)
+    st.write(f"Standard: **{alpha}** → Adjusted: **{adj_alpha:.5f}**")
+    for pw in mv["pairwise"]:
+        if pw["p_raw"] < adj_alpha:
+            st.success(f"✅ {pw['name']}: Significant after penalty (p={pw['p_raw']:.4f})")
+        else:
+            st.error(f"❌ {pw['name']}: Not significant after penalty (p={pw['p_raw']:.4f})")
 
-# --- TAB 4: STRATEGIC MATRIX ---
+# ---- TAB 4: STRATEGIC MATRIX ----
 with tab4:
-    plot_strategic_matrix(rate_c * 100, aov_c, rate_v * 100, aov_v)
+    plot_strategic_matrix(mv["metrics"])
 
-# --- TAB 5: PRODUCT METRICS ---
+# ---- TAB 5: PRODUCT METRICS ----
 with tab5:
+    labels = [m["name"] for m in mv["metrics"]]
     c1, c2 = st.columns(2)
     with c1:
-        plot_metric_comparison("Avg Products / Order", apo_c, apo_v)
+        plot_multivariant_bar("Avg Products / Order", [m["apo"] for m in mv["metrics"]], labels)
     with c2:
-        plot_metric_comparison("Avg Products / User", apu_c, apu_v)
+        plot_multivariant_bar("Avg Products / User",  [m["apu"] for m in mv["metrics"]], labels)
 
-# --- TAB 6: REVENUE CHARTS ---
+# ---- TAB 6: REVENUE CHARTS ----
 with tab6:
+    labels = [m["name"] for m in mv["metrics"]]
     c1, c2 = st.columns(2)
     with c1:
-        plot_metric_comparison("Revenue Per Visitor", rpv_c, rpv_v, "$")
+        plot_multivariant_bar("Revenue Per Visitor", [m["rpv"] for m in mv["metrics"]], labels, "$")
     with c2:
-        plot_metric_comparison("Avg Order Value", aov_c, aov_v, "$")
+        plot_multivariant_bar("Avg Order Value",     [m["aov"] for m in mv["metrics"]], labels, "$")
 
-# --- TAB 7: CR COMPARISON ---
+# ---- TAB 7: CR COMPARISON ----
 with tab7:
-    plot_metric_comparison("Conversion Rate", rate_c * 100, rate_v * 100)
+    labels = [m["name"] for m in mv["metrics"]]
+    plot_multivariant_bar("Conversion Rate (%)", [m["cr_pct"] for m in mv["metrics"]], labels)
 
-# --- TAB 8: BAYESIAN PDFs ---
+# ---- TAB 8: BAYESIAN PDFs ----
 with tab8:
-    plot_bayesian_pdfs(
-        conv_control + 1, users_control - conv_control + 1,
-        conv_variation + 1, users_variation - conv_variation + 1,
-    )
+    plot_bayesian_pdfs(groups)
 
-# --- TAB 9 & 10: BOOTSTRAP + BOX PLOT ---
-# FIX: Both tabs share bootstrap data. We compute it once in session_state
-# so tab10 is never dependent on tab9 having rendered first.
+# ---- TAB 9 & 10: BOOTSTRAP + BOX PLOT (Control vs best variation) ----
 with tab9:
-    st.markdown("### Bootstrap Confidence Interval")
-    samples_c, samples_v, boot_ci_low, boot_ci_high = run_bootstrap_and_plot(
-        users_control, conv_control, users_variation, conv_variation, alpha_val=alpha
+    st.markdown(f"### Bootstrap CI — Control vs {best_m['name']}")
+    samps_c, samps_v, bci_l, bci_h = run_bootstrap_and_plot(
+        ctrl_m["users"], ctrl_m["conv"],
+        best_m["users"], best_m["conv"],
+        alpha_val=alpha, label_v=best_m["name"],
     )
-    # Store results so tab10 can access them safely
-    st.session_state["_boot_samples_c"] = samples_c
-    st.session_state["_boot_samples_v"] = samples_v
+    st.session_state["_boot_samples_c"] = samps_c
+    st.session_state["_boot_samples_v"] = samps_v
+    st.session_state["_boot_label_v"]   = best_m["name"]
     st.write(
-        f"**{confidence_level} CI on CR Difference (Variation − Control):** "
-        f"{boot_ci_low:.2f}% to {boot_ci_high:.2f}%"
+        f"**{confidence_level} CI on CR Difference ({best_m['name']} − Control):** "
+        f"{bci_l:.2f}% to {bci_h:.2f}%"
     )
 
 with tab10:
     st.markdown("### Box Plot: Bootstrap Distributions")
-    # FIX: Retrieve from session_state — safe even if tab9 hasn't rendered this session
     if "_boot_samples_c" in st.session_state and "_boot_samples_v" in st.session_state:
-        plot_box_plot_analysis(
+        plot_box_plots(
             st.session_state["_boot_samples_c"],
             st.session_state["_boot_samples_v"],
+            label_v=st.session_state.get("_boot_label_v", "Best Variation"),
         )
     else:
         st.info("Open the **Bootstrap** tab first to generate the data, then return here.")
