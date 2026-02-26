@@ -701,7 +701,7 @@ rev_sig = test_revenue_significance(
 # -----------------------------------------------
 # MAIN DASHBOARD
 # -----------------------------------------------
-st.title("Enterprise A/B Test Analyzer")
+st.title("A/B Test Analyzer v1.82c")
 
 render_header(ICON_BAR_CHART, "Results Summary")
 
