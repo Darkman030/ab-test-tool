@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile ab_test_analyzer.py)",
+      "Bash(python -m pylint ab_test_analyzer.py --disable=all --enable=E,W)",
+      "Bash(python -m pyflakes ab_test_analyzer.py)"
+    ]
+  }
+}
