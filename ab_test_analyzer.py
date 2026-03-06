@@ -12,6 +12,21 @@ from statsmodels.stats.multitest import multipletests
 import openai
 
 # -----------------------------------------------
+# JSON HELPERS
+# -----------------------------------------------
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        if isinstance(o, np.bool_):
+            return bool(o)
+        return super().default(o)
+
+# -----------------------------------------------
 # PAGE CONFIG
 # -----------------------------------------------
 st.set_page_config(page_title="Enterprise A/B Test Analyzer", layout="wide", initial_sidebar_state="expanded")
@@ -335,7 +350,7 @@ EXPERIMENT CONFIGURATION
 - Hypothesis: "{hypothesis}"
 
 EXPERIMENT DATA
-{json.dumps(metrics, indent=2)}
+{json.dumps(metrics, indent=2, cls=NumpyEncoder)}
 
 INSTRUCTIONS
 Write in Markdown using exactly these sections. Do not restate the hypothesis as a heading — weave it into the Executive Summary opening sentence. If multiple variants are present, compare each vs control and identify a clear winner or explain why none qualifies.
