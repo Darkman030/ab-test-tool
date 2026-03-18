@@ -1,10 +1,57 @@
 import streamlit as st
 import numpy as np
 import json
+import io
+import datetime
+import re as _re
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")           # Must be set before importing pyplot
 import matplotlib.pyplot as plt
+
+# ── Global chart theme ───────────────────────────────────────────────────────
+# Match Streamlit's dark UI. Applied once at module level — all plot functions inherit.
+_BG      = "#0e1117"   # Streamlit dark background
+_BG_AX   = "#1a1d24"   # Slightly lighter for axes area
+_FG      = "#e0e0e0"   # Primary text / tick labels
+_GRID    = "#2e3140"   # Subtle grid lines
+_SPINE   = "#3a3f52"   # Axis border colour
+
+plt.rcParams.update({
+    # Figure & axes backgrounds
+    "figure.facecolor":     _BG,
+    "axes.facecolor":       _BG_AX,
+    "savefig.facecolor":    _BG,
+    # Text & labels
+    "text.color":           _FG,
+    "axes.labelcolor":      _FG,
+    "axes.titlecolor":      _FG,
+    "axes.titlesize":       13,
+    "axes.labelsize":       11,
+    "axes.titlepad":        14,
+    # Ticks
+    "xtick.color":          _FG,
+    "ytick.color":          _FG,
+    "xtick.labelsize":      10,
+    "ytick.labelsize":      10,
+    # Grid
+    "axes.grid":            True,
+    "grid.color":           _GRID,
+    "grid.linewidth":       0.7,
+    "grid.alpha":           1.0,
+    # Spines
+    "axes.edgecolor":       _SPINE,
+    "axes.linewidth":       0.8,
+    # Legend
+    "legend.facecolor":     _BG_AX,
+    "legend.edgecolor":     _SPINE,
+    "legend.labelcolor":    _FG,
+    "legend.fontsize":      10,
+    # Layout
+    "figure.dpi":           120,
+    "axes.spines.top":      False,
+    "axes.spines.right":    False,
+})
 from scipy.stats import beta, chisquare, mannwhitneyu, chi2_contingency
 from statsmodels.stats.proportion import proportions_ztest, proportion_confint, proportion_effectsize
 from statsmodels.stats.power import NormalIndPower, TTestIndPower
@@ -40,6 +87,7 @@ ICON_BAR_CHART = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em
 ICON_PIE       = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M429.9 186.7v406.4h407.5c-4 34.1-12.8 67.3-26.2 99.1-18.4 43.6-44.8 82.7-78.5 116.3-33.6 33.6-72.8 60-116.4 78.4-45.1 19.1-93 28.7-142.5 28.7-49.4 0-97.4-9.7-142.5-28.7-43.6-18.4-82.7-44.8-116.4-78.4-33.6-33.6-60-72.7-78.4-116.3-19.1-45.1-28.7-93-28.7-142.4s9.7-97.3 28.7-142.4c18.4-43.6 44.8-82.7 78.4-116.3 33.6-33.6 72.8-60 116.4-78.4 31.7-13.2 64.7-21.9 98.6-26m44-46.6c-226.4 0-410 183.5-410 409.8s183.6 409.8 410 409.8 410-183.5 410-409.8v-0.8h-410v-409z" fill="#ffffff"/><path d="M566.1 80.5c43.7 1.7 86.4 10.6 127 26.4 44 17.1 84.2 41.8 119.6 73.5 71.7 64.1 117.4 151.7 128.7 246.7 1.2 9.9 2 20 2.4 30.2H566.1V80.5m-16-16.3v409h410c0-16.3-1-32.3-2.9-48.1C933.1 221.9 760 64.2 550.1 64.2zM264.7 770.4c-23.1-23.1-42.3-49.1-57.3-77.7l-14.7 6.5c35.7 68.2 94 122.7 165 153.5l4.3-15.6c-36.3-16-69.1-38.4-97.3-66.7z" fill="#E73B37"/></svg>"""
 ICON_BRAIN     = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 301.2m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M511.8 256.6c24.4 0 44.2 19.8 44.2 44.2S536.2 345 511.8 345s-44.2-19.8-44.2-44.2 19.9-44.2 44.2-44.2m0-20c-35.5 0-64.2 28.7-64.2 64.2s28.7 64.2 64.2 64.2 64.2-28.7 64.2-64.2-28.7-64.2-64.2-64.2z" fill="#E73B37"/><path d="M730.7 529.5c0.4-8.7 0.6-17.4 0.6-26.2 0-179.6-86.1-339.1-219.3-439.5-133.1 100.4-219.2 259.9-219.2 439.5 0 8.8 0.2 17.5 0.6 26.1-56 56-90.6 133.3-90.6 218.7 0 61.7 18 119.1 49.1 167.3 30.3-49.8 74.7-90.1 127.7-115.3 39-18.6 82.7-29 128.8-29 48.3 0 93.9 11.4 134.3 31.7 52.5 26.3 96.3 67.7 125.6 118.4 33.4-49.4 52.9-108.9 52.9-173.1 0-85.4-34.6-162.6-90.5-218.6z" fill="#ffffff"/><path d="M512 819.3c8.7 0 24.7 22.9 24.7 60.4s-16 60.4-24.7 60.4-24.7-22.9-24.7-60.4 16-60.4 24.7-60.4m0-20c-24.7 0-44.7 36-44.7 80.4 0 44.4 20 80.4 44.7 80.4s44.7-36 44.7-80.4c0-44.4-20-80.4-44.7-80.4z" fill="#E73B37"/></svg>"""
 ICON_UPLOAD    = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M220.5 245.4c-32.8 32.8-55.1 73.2-65.2 117.3h16.5c18.8-75.3 75.1-135.9 148-160.7v-16.9c-37.1 11.6-71 32-99.3 60.3z" fill="#E73B37"/><path d="M959.9 540.8c0 113.6-92.1 205.8-205.7 205.9H590.9v-44h163.3c43.2 0 83.8-16.9 114.3-47.4 30.6-30.6 47.4-71.2 47.4-114.5 0-43.2-16.8-83.9-47.4-114.4S797.2 379 754 379c-11.5 0-22.8 1.2-33.8 3.5-15 3.2-29.4 8.4-42.8 15.7-1-15.4-3.3-30.7-6.8-45.6-3.6-15.6-8.6-30.8-14.9-45.7-14.4-33.9-34.9-64.4-61.1-90.6-26.2-26.2-56.6-46.7-90.6-61.1-35.1-14.8-72.4-22.4-110.9-22.4s-75.8 7.5-110.9 22.4c-33.9 14.3-64.4 34.9-90.6 61.1-26.2 26.2-46.7 56.7-61.1 90.6-14.9 35.1-22.4 72.4-22.4 110.9s7.5 75.8 22.4 110.9c14.3 33.9 34.9 64.4 61.1 90.6 26.2 26.2 56.7 46.7 90.6 61.1 35.1 14.8 72.4 22.4 110.9 22.4h39.7v44h-41C210.7 746 64.1 599 64.1 417.7c0-181.7 147.3-329 329-329 154.6 0 284.3 106.6 319.5 250.3 13.4-2.7 27.2-4.2 41.4-4.2 113.7 0.1 205.9 92.2 205.9 205.9z" fill="#ffffff"/><path d="M692.9 636.1h-22.6L519.8 485.6v449.6h-16V485.8L353.4 636.1h-22.6l181-181z" fill="#E73B37"/></svg>"""
+ICON_GUARDRAIL = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 64L160 192v256c0 224 152 416 352 512 200-96 352-288 352-512V192L512 64z m308 384c0 192-128 364-308 452-180-88-308-260-308-452V228l308-112 308 112v220z" fill="#ffffff"/><path d="M512 320m-10 0a10 10 0 1 0 20 0 10 10 0 1 0-20 0Z" fill="#E73B37"/><path d="M512 276c24.4 0 44 19.6 44 44s-19.6 44-44 44-44-19.6-44-44 19.6-44 44-44m0-20c-35.3 0-64 28.7-64 64s28.7 64 64 64 64-28.7 64-64-28.7-64-64-64z" fill="#E73B37"/><path d="M420 550l60 60 140-140-28-28-112 112-32-32z" fill="#E73B37"/></svg>"""
 ICON_TROPHY    = """<svg viewBox="0 0 1024 1024" style="width:1.5em;height:1.5em;vertical-align:middle;margin-right:10px;" xmlns="http://www.w3.org/2000/svg"><path d="M828.5 180.1h-9.9v-54.7h23.5v-44H182v44h23v54.7h-9.5C123.2 180.1 64 239.2 64 311.5v0.1c0 72.3 59.2 131.5 131.5 131.5h9.6c0 1.3 0.1 2.5 0.1 3.7 0.5 17.7 2.7 35.4 6.2 52.5 17.8 85.7 71.8 160 148.3 204 4.8 2.8 9.8 5.4 14.7 7.9 15.3 7.7 31.2 14.1 47.4 19.2 3.4 1 6.8 2 10.2 2.9v165.2H250.4v44h511.9v-44H591.9V733.4c3.7-1 7.3-2.1 10.9-3.2 16.2-5.1 32.2-11.6 47.4-19.4 5-2.5 10-5.3 14.8-8.1 75.6-43.9 129.2-117.8 147-202.7 3.6-17.2 5.8-34.9 6.3-52.4 0.1-1.5 0.1-3 0.1-4.5h10c72.3 0 131.5-59.2 131.5-131.5v-0.1c0.1-72.3-59.1-131.4-131.4-131.4zM205 399.2h-9.5c-23.2 0-45.1-9.1-61.7-25.7s-25.7-38.5-25.7-61.7v-0.1c0-23.2 9.1-45.2 25.7-61.7 16.6-16.6 38.5-25.7 61.7-25.7h9.5v174.9z m370.9 499.4h-128V737.3c20.9 4.5 42.3 6.8 63.9 6.8 21.7 0 43.1-2.3 64.1-6.8v161.3z m198.7-461.4c0 2.9 0 5.9-0.2 8.9-0.5 15-2.3 30.1-5.4 44.9-15.3 72.7-61.2 136-126.1 173.7-4.1 2.4-8.4 4.7-12.7 6.9-13 6.6-26.7 12.2-40.6 16.6-25.2 7.9-51.4 11.9-77.9 11.9-26.2 0-52.2-3.9-77.1-11.6-13.9-4.3-27.5-9.8-40.6-16.4-4.2-2.1-8.5-4.4-12.6-6.8-65.4-37.8-111.7-101.5-126.9-174.8-3.1-14.7-4.9-29.8-5.3-45-0.1-2.7-0.1-5.5-0.1-8.2v-312h525.6v311.9zM916 311.7c0 23.2-9.1 45.2-25.7 61.7-16.6 16.6-38.5 25.7-61.7 25.7h-9.9v-175h9.9c23.2 0 45.1 9.1 61.7 25.7s25.7 38.5 25.7 61.7v0.2z" fill="#ffffff"/><path d="M555.4 659.6l-4.8-19.4c0.3-0.1 26.5-6.8 55.4-23.5 37.8-21.9 62-49.7 72-82.7l19.1 5.8c-11.4 37.6-39.6 70.3-81.6 94.5-31.2 18-58.9 25-60.1 25.3z" fill="#E73B37"/></svg>"""
 
 # -----------------------------------------------
@@ -66,11 +114,17 @@ def initialize_state():
         "users_v1": 5000, "conv_v1": 560, "rev_v1": 30000.0, "prod_v1": 900,
         # Variation C
         "users_v2": 5000, "conv_v2": 540, "rev_v2": 28000.0, "prod_v2": 850,
-        "days": 14, "conf_level": "95%", "mc_method": "holm",
+        "days": 14, "conf_level": "95%", "mc_method": "holm", "primary_goal": "Maximize CR",
+        "start_date": None,
         "p_traffic": 50000, "p_base_cr": 2.5, "p_base_aov": 75.0,
         "p_mde": 5.0, "p_vol": "Medium (Standard E-com)",
         "s1_uc": 2000, "s1_cc": 100, "s1_uv": 2000, "s1_cv": 110,
         "s2_uc": 3000, "s2_cc": 400, "s2_uv": 3000, "s2_cv": 420,
+        # Guardrail metrics
+        "num_guardrails": 1,
+        "g0_name": "Bounce Rate",       "g0_ctrl": 45.0, "g0_var": 0.0, "g0_threshold": 5.0, "g0_dir": "lower is better",
+        "g1_name": "Session Duration",  "g1_ctrl": 0.0,  "g1_var": 0.0, "g1_threshold": 5.0, "g1_dir": "higher is better",
+        "g2_name": "Add-to-Cart Rate",  "g2_ctrl": 0.0,  "g2_var": 0.0, "g2_threshold": 5.0, "g2_dir": "higher is better",
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -84,11 +138,16 @@ SAVE_KEYS = [
     "users_v0","conv_v0","rev_v0","prod_v0",
     "users_v1","conv_v1","rev_v1","prod_v1",
     "users_v2","conv_v2","rev_v2","prod_v2",
-    "days","conf_level","mc_method",
+    "days","conf_level","mc_method","primary_goal",
     # Sample-size calculator inputs (preserved in snapshots)
     "p_traffic","p_base_cr","p_base_aov","p_mde","p_vol",
     "s1_uc","s1_cc","s1_uv","s1_cv",
     "s2_uc","s2_cc","s2_uv","s2_cv",
+    # Guardrail metrics
+    "num_guardrails",
+    "g0_name","g0_ctrl","g0_var","g0_threshold","g0_dir",
+    "g1_name","g1_ctrl","g1_var","g1_threshold","g1_dir",
+    "g2_name","g2_ctrl","g2_var","g2_threshold","g2_dir",
 ]
 
 
@@ -123,9 +182,111 @@ def perform_srm_test(observed, expected_split=None):
 
 
 # -----------------------------------------------
+# DURATION ANALYSIS
+# -----------------------------------------------
+def analyze_test_duration(days, start_date=None):
+    """
+    Runs multiple business-cycle checks on the test duration.
+    Returns a list of check dicts:
+      {"id": str, "level": "pass"|"warning"|"error", "label": str, "msg": str}
+    start_date: datetime.date or None. When provided, enables day-of-week bias detection.
+    """
+    _DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    full_weeks = days // 7
+    remainder  = days % 7
+    checks = []
+
+    # 1. Minimum duration / novelty
+    if days < 7:
+        checks.append({"id": "too_short", "level": "error",
+                        "label": "Too Short",
+                        "msg": f"{days} day{'s' if days != 1 else ''} is below the 7-day minimum — results are unreliable."})
+    elif days < 14:
+        checks.append({"id": "novelty", "level": "warning",
+                        "label": "Novelty Risk",
+                        "msg": f"{days} days — users may still be reacting to the change. Industry standard is 14+ days."})
+    else:
+        checks.append({"id": "duration_ok", "level": "pass",
+                        "label": "Duration OK",
+                        "msg": f"{days} days ({full_weeks} full week{'s' if full_weeks != 1 else ''})."})
+
+    # 2. Seasonality risk for very long tests
+    if days > 90:
+        checks.append({"id": "long_running", "level": "warning",
+                        "label": "Seasonality Risk",
+                        "msg": f"{days} days is a long test. Results may be contaminated by seasonal trends unrelated to the change."})
+
+    # 3. Business week integrity
+    if days >= 7 and remainder != 0:
+        checks.append({"id": "incomplete_weeks", "level": "warning",
+                        "label": "Incomplete Weeks",
+                        "msg": (f"{days} days = {full_weeks} full week{'s' if full_weeks != 1 else ''}"
+                                f" + {remainder} extra day{'s' if remainder != 1 else ''}."
+                                f" Partial weeks introduce day-of-week bias.")})
+    elif days >= 14:
+        checks.append({"id": "weeks_ok", "level": "pass",
+                        "label": "Full Weeks",
+                        "msg": f"{full_weeks} complete week{'s' if full_weeks != 1 else ''} — no day-of-week bias."})
+
+    # 4. Day-of-week alignment (only when start date is provided)
+    if start_date is not None:
+        end_date  = start_date + datetime.timedelta(days=days - 1)
+        start_dow = start_date.weekday()   # 0 = Monday
+        end_dow   = end_date.weekday()     # 6 = Sunday
+        if start_dow == 0 and end_dow == 6:
+            checks.append({"id": "dow_ok", "level": "pass",
+                            "label": "Week Alignment",
+                            "msg": f"Started {_DOW[start_dow]}, ended {_DOW[end_dow]} — perfect Mon→Sun alignment."})
+        else:
+            checks.append({"id": "dow_bias", "level": "warning",
+                            "label": "Day-of-Week Bias",
+                            "msg": (f"Test ran {_DOW[start_dow]} → {_DOW[end_dow]}. "
+                                    f"Ideal window is Mon → Sun. Partial week coverage may skew results.")})
+
+    return checks
+
+
+# -----------------------------------------------
+# GUARDRAIL METRICS ENGINE
+# -----------------------------------------------
+def evaluate_guardrails(guardrails):
+    """
+    guardrails: list of dicts — name, ctrl_val, var_val, threshold, direction.
+    direction: "lower is better" | "higher is better"
+    Returns list of result dicts with violated flag.
+    """
+    results = []
+    for g in guardrails:
+        ctrl = g["ctrl_val"]
+        var  = g["var_val"]
+        if ctrl == 0:
+            results.append({
+                "name": g["name"], "ctrl": ctrl, "var": var,
+                "delta_pct": 0.0, "violated": False, "skip": True,
+            })
+            continue
+        delta_pct = ((var - ctrl) / ctrl) * 100
+        if g["direction"] == "lower is better":
+            violated = delta_pct > g["threshold"]
+        else:
+            violated = delta_pct < -g["threshold"]
+        results.append({
+            "name":      g["name"],
+            "ctrl":      ctrl,
+            "var":       var,
+            "delta_pct": delta_pct,
+            "threshold": g["threshold"],
+            "direction": g["direction"],
+            "violated":  violated,
+            "skip":      False,
+        })
+    return results
+
+
+# -----------------------------------------------
 # MULTI-VARIANT STATISTICAL ENGINE
 # -----------------------------------------------
-def run_multivariate_analysis(groups, alpha, mc_method):
+def run_multivariate_analysis(groups, alpha, mc_method, primary_goal="Maximize CR"):
     """
     groups: list of dicts — name, users, conv, rev, prod.
     Returns omnibus chi-square, pairwise comparisons with MCC, per-group
@@ -146,7 +307,7 @@ def run_multivariate_analysis(groups, alpha, mc_method):
 
     metrics = []
     for g in groups:
-        cr  = safe_divide(g["conv"],  g["users"])
+        cr  = min(safe_divide(g["conv"],  g["users"]), 1.0)   # clamp: conv can't exceed users
         aov = safe_divide(g["rev"],   g["conv"])
         rpv = safe_divide(g["rev"],   g["users"])
         apo = safe_divide(g["prod"],  g["conv"])
@@ -184,11 +345,14 @@ def run_multivariate_analysis(groups, alpha, mc_method):
         labels.append(var["name"])
 
     # --- Multiple comparison correction ---
-    if len(raw_p) > 0:
-        reject, p_adj, _, _ = multipletests(raw_p, alpha=alpha, method=mc_method)
+    # Replace NaN/inf p-values (from degenerate inputs like conv > users) with 1.0
+    safe_p = [p if np.isfinite(p) else 1.0 for p in raw_p]
+    if len(safe_p) > 0:
+        reject, p_adj, _, _ = multipletests(safe_p, alpha=alpha, method=mc_method)
     else:
         reject, p_adj = np.array([]), np.array([])
 
+    ctrl_apo = metrics[0]["apo"]
     pairwise = []
     for i, var in enumerate(variations):
         m = metrics[i + 1]
@@ -201,22 +365,43 @@ def run_multivariate_analysis(groups, alpha, mc_method):
             "uplift_cr":   m["uplift_cr"],
             "uplift_aov":  m["uplift_aov"],
             "uplift_rpv":  m["uplift_rpv"],
+            "uplift_apo":  calculate_uplift(ctrl_apo, m["apo"]),
         })
 
-    # --- Winner = significant variation with positive CR uplift AND non-negative RPV ---
-    # Requiring uplift_rpv >= 0 prevents declaring a winner that costs net revenue.
-    sig_winners = [
-        pw for pw in pairwise
-        if pw["significant"] and pw["uplift_cr"] > 0
-    ]
-    # Separate clean wins (CR up, RPV up) from volume-only wins (CR up, RPV down)
-    clean_winners = [pw for pw in sig_winners if pw["uplift_rpv"] >= 0]
+    # --- Winner selection — behaviour driven by primary_goal ---
+    #
+    # "Maximize CR":      Only variants with CR uplift > 0 qualify.
+    #                     Tiebreaker: RPV → AOV → lowest APO.
+    #
+    # "Maximize Revenue": Only variants with RPV uplift > 0 qualify.
+    #                     A lower-CR variant can win if it earns more per visitor.
+    #                     Tiebreaker: CR → AOV → lowest APO.
+    #
+    # "Balanced":         Composite score = 0.4 × uplift_cr + 0.6 × uplift_rpv.
+    #                     Variant must be significant and have positive composite score.
+    #                     Tiebreaker: AOV → lowest APO.
+
+    _composite = lambda x: 0.4 * x["uplift_cr"] + 0.6 * x["uplift_rpv"]
+
+    if primary_goal == "Maximize Revenue":
+        sig_winners   = [pw for pw in pairwise if pw["significant"] and pw["uplift_rpv"] > 0]
+        clean_winners = [pw for pw in sig_winners if pw["uplift_cr"] >= 0]
+        _winner_key   = lambda x: (x["uplift_rpv"], x["uplift_cr"], x["uplift_aov"], -x["uplift_apo"])
+    elif primary_goal == "Balanced":
+        sig_winners   = [pw for pw in pairwise if pw["significant"] and _composite(pw) > 0]
+        clean_winners = [pw for pw in sig_winners if pw["uplift_cr"] >= 0 and pw["uplift_rpv"] >= 0]
+        _winner_key   = lambda x: (_composite(x), x["uplift_aov"], -x["uplift_apo"])
+    else:  # "Maximize CR" (default)
+        sig_winners   = [pw for pw in pairwise if pw["significant"] and pw["uplift_cr"] > 0]
+        clean_winners = [pw for pw in sig_winners if pw["uplift_rpv"] >= 0]
+        _winner_key   = lambda x: (x["uplift_cr"], x["uplift_rpv"], x["uplift_aov"], -x["uplift_apo"])
+
     winner = (
-        max(clean_winners, key=lambda x: x["uplift_cr"])["name"]
+        max(clean_winners, key=_winner_key)["name"]
         if clean_winners
-        else (max(sig_winners, key=lambda x: x["uplift_cr"])["name"] if sig_winners else None)
+        else (max(sig_winners, key=_winner_key)["name"] if sig_winners else None)
     )
-    # Flag if winner was chosen despite negative RPV (volume play)
+    # Flag if winner was chosen despite the "other" metric being negative
     winner_rpv_negative = (
         winner is not None and not clean_winners and bool(sig_winners)
     )
@@ -274,6 +459,8 @@ def calculate_bayesian_risk(ac, bc, av, bv):
 def reconstruct_order_values(n_users, n_conv, total_rev, rng):
     if n_conv <= 0 or total_rev <= 0:
         return np.zeros(max(n_users, 1))
+    n_users = max(n_users, 1)
+    n_conv  = min(n_conv, n_users)   # conv can never exceed users — clamp defensively
     aov   = total_rev / n_conv
     sigma = 0.8
     mu    = np.log(aov) - (sigma ** 2) / 2
@@ -407,101 +594,528 @@ One paragraph. Ship / do not ship / run longer for each variant. Name a winner i
 # -----------------------------------------------
 def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, alpha_val):
     report = []
+    conf_pct = f"{(1 - alpha_val) * 100:.0f}%"
 
+    # ── CRITICAL: SRM blocks all further analysis ──────────────────────────
     if metrics_payload["p_srm"] < 0.01:
-        report.append("### ⛔ CRITICAL: Sample Ratio Mismatch Detected")
+        report.append("### CRITICAL — Sample Ratio Mismatch")
         report.append(
             f"SRM p = **{metrics_payload['p_srm']:.4f}**. Traffic split is uneven — "
-            "**all results below are likely invalid.** Fix your randomisation before drawing conclusions."
+            "**all results below are unreliable.** Fix randomisation before drawing any conclusions."
         )
         return "\n\n".join(report)
 
-    n_vars  = mv_results["n_comparisons"]
-    winner  = mv_results["winner"]
-    p_glob  = mv_results["p_global"]
+    n_vars       = mv_results["n_comparisons"]
+    winner       = mv_results["winner"]
+    p_glob       = mv_results["p_global"]
+    primary_goal = metrics_payload.get("primary_goal", "Maximize CR")
+    rev_sig      = metrics_payload.get("rev_sig", {})
+    guardrails   = metrics_payload.get("guardrail_results", [])
+    all_metrics  = metrics_payload.get("metrics", [])
 
-    # Headline
+    # ── HEADLINE ────────────────────────────────────────────────────────────
     if n_vars == 1:
         pw = mv_results["pairwise"][0]
+        p_display = f"{pw['p_adjusted']:.4f}" if np.isfinite(pw['p_adjusted']) else "—"
         if pw["significant"] and pw["uplift_cr"] > 0:
-            headline = "✅ WINNER: Statistically Significant Positive Result"
-            summary  = f"Variation outperforms Control at {(1-alpha_val)*100:.0f}% confidence (p_adj = {pw['p_adjusted']:.4f})."
+            headline = "WINNER — Statistically Significant Positive Result"
+            summary  = f"Variation outperforms Control at {conf_pct} confidence (p_adj = {p_display})."
         elif pw["significant"] and pw["uplift_cr"] < 0:
-            headline = "❌ LOSER: Statistically Significant Negative Result"
-            summary  = f"Variation is significantly worse than Control (p_adj = {pw['p_adjusted']:.4f}). Do not ship."
+            headline = "LOSER — Statistically Significant Negative Result"
+            summary  = f"Variation is significantly worse than Control (p_adj = {p_display}). Do not ship."
         else:
-            headline = "⚠️ INCONCLUSIVE: No Clear Winner"
-            summary  = f"Cannot reject the null hypothesis (p_adj = {pw['p_adjusted']:.4f}). More data needed."
+            headline = "INCONCLUSIVE — No Clear Winner"
+            summary  = f"Cannot reject the null hypothesis (p_adj = {p_display}). More data needed."
     else:
         if winner:
-            headline = f"✅ MULTI-VARIANT WINNER: {winner}"
+            headline = f"MULTI-VARIANT WINNER — {winner}"
             summary  = (
                 f"Omnibus test confirms a significant difference (χ² p = {p_glob:.4f}). "
-                f"**{winner}** is the strongest performer after "
-                f"{mv_results['correction'].upper()} correction."
+                f"**{winner}** is the strongest performer after {mv_results['correction'].upper()} correction."
             )
         elif p_glob <= alpha_val:
-            headline = "⚠️ SIGNIFICANT DIFFERENCE — No Positive Winner"
+            headline = "SIGNIFICANT DIFFERENCE — No Positive Winner"
             summary  = (
                 f"Omnibus test significant (p = {p_glob:.4f}) but no variant shows a "
-                "significant positive uplift after correction. One may be significantly worse."
+                "significant positive uplift after correction."
             )
         else:
-            headline = "⚠️ MULTI-VARIANT INCONCLUSIVE"
+            headline = "MULTI-VARIANT INCONCLUSIVE"
             summary  = f"No significant overall difference (omnibus p = {p_glob:.4f})."
 
     report.append(f"### {headline}")
     report.append(summary)
     if hypothesis:
         report.append(f"**Hypothesis:** _{hypothesis}_")
+    report.append(f"_Optimisation goal: **{primary_goal}** · Confidence level: **{conf_pct}**_")
 
-    # Data health
+    # ── DATA HEALTH ─────────────────────────────────────────────────────────
     report.append("### Data Health & Validity")
     days = metrics_payload["days"]
-    if days < 7:
-        report.append(f"- ⚠️ **Duration:** Only {days} days — too short.")
-    elif days < 14:
-        report.append(f"- ⚠️ **Duration:** {days} days — watch for novelty effects.")
-    else:
-        report.append(f"- ✅ **Duration:** {days} days — healthy.")
-    report.append(f"- ✅ **SRM:** Passed (p = {metrics_payload['p_srm']:.4f}).")
+    dur_status = "WARNING:" if days < 14 else "PASS:"
+    dur_note   = f"Only {days} days — too short for reliable results." if days < 7 else \
+                 f"{days} days — watch for novelty effects." if days < 14 else \
+                 f"{days} days — healthy duration."
+    report.append(f"- **{dur_status}** Duration: {dur_note}")
+    report.append(f"- **PASS:** SRM test (p = {metrics_payload['p_srm']:.4f}) — traffic split is even.")
     if n_vars > 1:
         report.append(
-            f"- ℹ️ **MCC:** {mv_results['correction'].upper()} applied across "
-            f"{n_vars} pairwise comparisons."
+            f"- **INFO:** {mv_results['correction'].upper()} multiple comparison correction "
+            f"applied across {n_vars} pairwise comparisons."
         )
 
-    # Pairwise table
+    # ── PAIRWISE RESULTS ────────────────────────────────────────────────────
     report.append("### Pairwise Results vs Control")
     for pw in mv_results["pairwise"]:
-        sig = "✅ Significant" if pw["significant"] else "❌ Not Significant"
-        d   = "▲" if pw["uplift_cr"] > 0 else "▼"
+        sig   = "Significant" if pw["significant"] else "Not Significant"
+        cr_d  = "▲" if pw["uplift_cr"]  >= 0 else "▼"
+        rpv_d = "▲" if pw["uplift_rpv"] >= 0 else "▼"
+        aov_d = "▲" if pw["uplift_aov"] >= 0 else "▼"
+        p_display = f"{pw['p_adjusted']:.4f}" if np.isfinite(pw['p_adjusted']) else "—"
         report.append(
-            f"- **{pw['name']}**: CR {d}{pw['uplift_cr']:+.2f}% | "
-            f"RPV {pw['uplift_rpv']:+.2f}% | "
-            f"p_raw={pw['p_raw']:.4f} → p_adj={pw['p_adjusted']:.4f} — {sig}"
+            f"- **{pw['name']}** [{sig}] — "
+            f"CR {cr_d}{pw['uplift_cr']:+.2f}% | "
+            f"RPV {rpv_d}{pw['uplift_rpv']:+.2f}% | "
+            f"AOV {aov_d}{pw['uplift_aov']:+.2f}% | "
+            f"p_adj = {p_display}"
         )
 
-    # Bayesian
+    # ── PRODUCT VELOCITY ────────────────────────────────────────────────────
+    if len(all_metrics) > 1:
+        report.append("### Product Velocity")
+        for m in all_metrics[1:]:
+            apo_d = "▲" if m.get("uplift_apo", 0) >= 0 else "▼"
+            note  = ""
+            if abs(m.get("uplift_apo", 0)) > 10:
+                if m["uplift_apo"] < 0 and m["uplift_rpv"] >= 0:
+                    note = " — fewer items, same or higher revenue: better per-item margin."
+                elif m["uplift_apo"] > 0 and m["uplift_rpv"] >= 0:
+                    note = " — more items per order with higher revenue: basket expansion."
+                elif m["uplift_apo"] > 0 and m["uplift_rpv"] < 0:
+                    note = " — more items per order but lower revenue: possible discounting risk."
+            apo_val = m.get("uplift_apo", 0)
+            report.append(
+                f"- **{m['name']}**: {m['apo']:.2f} items/order "
+                f"({apo_d}{apo_val:+.1f}% vs Control){note}"
+            )
+
+    # ── REVENUE SIGNALS ─────────────────────────────────────────────────────
+    if rev_sig:
+        report.append("### Revenue Signals")
+        report.append(
+            "_Based on reconstructed order distributions — treat as directional signals, not precise p-values._"
+        )
+        for label, display in [("rpv", "Revenue Per Visitor"), ("aov", "Average Order Value")]:
+            r = rev_sig.get(label, {})
+            if not r:
+                continue
+            overall = "Significant" if r.get("sig") else "Not significant"
+            mw_p    = f"{r['mw_p']:.4f}" if np.isfinite(r.get("mw_p", float("nan"))) else "—"
+            ci_l    = r.get("boot_ci_low",  0)
+            ci_h    = r.get("boot_ci_high", 0)
+            ci_note = "CI entirely positive — gain is consistent." if ci_l > 0 else \
+                      "CI entirely negative — loss is consistent." if ci_h < 0 else \
+                      "CI crosses zero — result is uncertain."
+            report.append(
+                f"- **{display}:** {overall} (Mann-Whitney p = {mw_p}) · "
+                f"Bootstrap CI: ${ci_l:.3f} to ${ci_h:.3f} · {ci_note}"
+            )
+
+    # ── BAYESIAN ASSESSMENT ─────────────────────────────────────────────────
     report.append("### Bayesian Assessment")
+    best_bayes = max(bayes_mv["prob_best"], key=bayes_mv["prob_best"].get)
     for name, prob in bayes_mv["prob_best"].items():
         loss = bayes_mv["expected_loss"].get(name, 0)
-        report.append(f"- **{name}**: {prob*100:.1f}% P(best) | Expected loss: {loss*100:.5f}%")
+        tag  = " ← highest probability" if name == best_bayes else ""
+        interp = ""
+        if prob >= 0.95:
+            interp = "Strong Bayesian evidence."
+        elif prob >= 0.80:
+            interp = "Moderate evidence — worth monitoring."
+        elif prob >= 0.60:
+            interp = "Weak signal — inconclusive."
+        else:
+            interp = "No meaningful advantage."
+        report.append(
+            f"- **{name}**: {prob*100:.1f}% P(best) | "
+            f"Expected loss if wrong: {loss*100:.4f}%{tag} — {interp}"
+        )
 
-    # Conclusion
+    # ── GUARDRAIL STATUS ────────────────────────────────────────────────────
+    active_guards = [g for g in guardrails if not g.get("skip")]
+    if active_guards:
+        report.append("### Guardrail Metrics")
+        any_violated = any(g["violated"] for g in active_guards)
+        if any_violated:
+            report.append("**WARNING: One or more guardrail metrics are violated.**")
+        else:
+            report.append("All guardrail metrics are within acceptable thresholds.")
+        for g in active_guards:
+            status = "VIOLATED" if g["violated"] else "PASS"
+            d = "▲" if g["delta_pct"] > 0 else "▼"
+            report.append(
+                f"- **{g['name']}** [{status}]: {d}{abs(g['delta_pct']):.1f}% change "
+                f"(limit ±{g['threshold']}%, {g['direction']})"
+            )
+
+    # ── STRATEGIC CONCLUSION ────────────────────────────────────────────────
     report.append("### Strategic Conclusion")
     if winner:
-        pw_w = next(p for p in mv_results["pairwise"] if p["name"] == winner)
-        if pw_w["uplift_cr"] > 0 and pw_w["uplift_rpv"] > 0:
-            report.append(f"🟢 **{winner} — Growth Engine:** CR and RPV both up. Ship.")
-        elif pw_w["uplift_cr"] > 0 and pw_w["uplift_rpv"] < 0:
-            report.append(f"🟡 **{winner} — Volume Play:** CR up, RPV down. Check revenue before shipping.")
+        pw_w         = next(p for p in mv_results["pairwise"] if p["name"] == winner)
+        cr_up        = pw_w["uplift_cr"]
+        rpv_up       = pw_w["uplift_rpv"]
+        aov_up       = pw_w["uplift_aov"]
+        guards_ok    = not any(g["violated"] for g in active_guards) if active_guards else True
+        guard_note   = " Guardrail check: PASS." if guards_ok and active_guards else \
+                       " **Guardrail check: FAILED — review secondary metrics before shipping.**" if active_guards else ""
+
+        if cr_up > 0 and rpv_up > 0 and aov_up >= 0:
+            verdict = f"**[SHIP] {winner} — Growth Engine.** CR, RPV, and AOV all positive."
+        elif cr_up > 0 and rpv_up > 0 and aov_up < 0:
+            verdict = f"**[SHIP WITH CAUTION] {winner} — Volume Play.** CR and RPV up, but AOV down — higher conversion from lower-value orders."
+        elif cr_up <= 0 and rpv_up > 0:
+            verdict = f"**[REVIEW] {winner} — Quality Play.** Lower CR but higher RPV — fewer, higher-value conversions. Consistent with '{primary_goal}' goal."
+        elif cr_up > 0 and rpv_up < 0:
+            verdict = f"**[REVIEW] {winner} — Volume Play.** CR up but RPV down — watch margin impact before shipping."
         else:
-            report.append(f"🟡 **{winner} — Marginal:** Review full metrics before shipping.")
+            verdict = f"**[REVIEW] {winner} — Mixed Signals.** Review all metrics before deciding."
+        report.append(verdict + guard_note)
     else:
-        report.append("🔴 No variant qualifies for shipping on current data.")
+        report.append(
+            "**[DO NOT SHIP]** No variant qualifies on current data. "
+            "Consider running longer to accumulate statistical power, or revisit the hypothesis."
+        )
 
     return "\n\n".join(report)
+
+
+# -----------------------------------------------
+# PDF REPORT GENERATOR
+# -----------------------------------------------
+def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
+                         p_srm, groups, days_run, confidence_level, primary_goal,
+                         ctrl_m, best_m, hypothesis="", smart_text=""):
+    """Build a PDF report from the current analysis state. Returns bytes."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer, Table,
+                                     TableStyle, HRFlowable, Image, PageBreak)
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+
+    buf    = io.BytesIO()
+    MARGIN = 18 * mm
+    USABLE = A4[0] - 2 * MARGIN
+    doc    = SimpleDocTemplate(buf, pagesize=A4,
+                                leftMargin=MARGIN, rightMargin=MARGIN,
+                                topMargin=MARGIN,  bottomMargin=MARGIN)
+
+    # ── Palette ──────────────────────────────────────────────────
+    C_RED   = colors.HexColor('#E73B37')
+    C_DARK  = colors.HexColor('#1a1d24')
+    C_LGRAY = colors.HexColor('#f5f5f5')
+    C_MGRAY = colors.HexColor('#cccccc')
+    C_GREEN = colors.HexColor('#2ca02c')
+    C_WARN  = colors.HexColor('#d97706')
+    C_BODY  = colors.HexColor('#333333')
+    C_MUTED = colors.HexColor('#888888')
+
+    # ── Style factory ─────────────────────────────────────────────
+    def _s(name, size, color=C_DARK, bold=False, align=TA_LEFT, sb=0, sa=4):
+        return ParagraphStyle(name, fontSize=size, textColor=color,
+                               fontName='Helvetica-Bold' if bold else 'Helvetica',
+                               alignment=align, spaceBefore=sb, spaceAfter=sa,
+                               leading=size * 1.45)
+
+    s_title = _s('pt',  20, C_DARK,  True,  TA_CENTER, 0, 8)
+    s_h1    = _s('ph1', 13, C_DARK,  True,  TA_LEFT,  12, 5)
+    s_h2    = _s('ph2', 10, C_RED,   True,  TA_LEFT,   6, 3)
+    s_body  = _s('pb',   9, C_BODY,  False, TA_LEFT,   0, 2)
+    s_small = _s('ps',   7, C_MUTED, False, TA_LEFT,   0, 1)
+    s_win   = _s('pw',  10, colors.white, True, TA_CENTER, 0, 0)
+
+    # ── Table helper ──────────────────────────────────────────────
+    def _tbl(data, col_widths, extra=None):
+        t  = Table(data, colWidths=col_widths)
+        ts = TableStyle([
+            ('BACKGROUND',    (0, 0), (-1,  0), C_DARK),
+            ('TEXTCOLOR',     (0, 0), (-1,  0), colors.white),
+            ('FONTNAME',      (0, 0), (-1,  0), 'Helvetica-Bold'),
+            ('FONTSIZE',      (0, 0), (-1, -1), 9),
+            ('ROWBACKGROUNDS',(0, 1), (-1, -1), [colors.white, C_LGRAY]),
+            ('GRID',          (0, 0), (-1, -1), 0.5, C_MGRAY),
+            ('PADDING',       (0, 0), (-1, -1), 5),
+            ('ALIGN',         (1, 0), (-1, -1), 'CENTER'),
+            ('VALIGN',        (0, 0), (-1, -1), 'MIDDLE'),
+        ])
+        for cmd in (extra or []):
+            ts.add(*cmd)
+        t.setStyle(ts)
+        return t
+
+    # ── Markdown → reportlab XML (handles **bold**) ───────────────
+    def _md(text):
+        text = text.replace('&', '&amp;')
+        text = _re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+        return text
+
+    # ── Figure → in-memory PNG bytes ─────────────────────────────
+    def _fig_bytes(fig):
+        b = io.BytesIO()
+        fig.savefig(b, format='png', bbox_inches='tight', dpi=110)
+        b.seek(0)
+        plt.close(fig)
+        return b
+
+    # Light rcParams for PDF charts (overrides global dark theme)
+    _PDF_RC = {
+        'figure.facecolor': 'white',   'axes.facecolor':  '#f8f8f8',
+        'savefig.facecolor': 'white',  'text.color':      '#1a1d24',
+        'axes.labelcolor':  '#1a1d24', 'axes.titlecolor': '#1a1d24',
+        'xtick.color':      '#1a1d24', 'ytick.color':     '#1a1d24',
+        'grid.color':       '#dddddd', 'axes.edgecolor':  '#cccccc',
+        'legend.facecolor': 'white',   'legend.edgecolor':'#cccccc',
+        'legend.labelcolor':'#1a1d24',
+    }
+
+    IMG_W   = USABLE
+    IMG_H   = 82 * mm
+    metrics = mv["metrics"]
+    elems   = []
+
+    # ── PAGE 1: HEADER & KEY METRICS ─────────────────────────────
+    elems.append(Paragraph("A/B Test Analysis Report", s_title))
+    elems.append(HRFlowable(width=USABLE, color=C_RED, thickness=2, spaceAfter=6))
+    if hypothesis:
+        elems.append(Paragraph(f"<i>Hypothesis: {_md(hypothesis)}</i>", s_body))
+        elems.append(Spacer(1, 4))
+
+    start_date = st.session_state.get("start_date")
+    meta = [
+        ["Generated",     datetime.date.today().isoformat()],
+        ["Test Duration", f"{days_run} days" + (f"  (started {start_date})" if start_date else "")],
+        ["Confidence",    confidence_level],
+        ["Primary Goal",  primary_goal],
+        ["Groups",        ", ".join(g["name"] for g in groups)],
+    ]
+    elems.append(_tbl(meta, [45 * mm, USABLE - 45 * mm]))
+    elems.append(Spacer(1, 10))
+
+    winner = mv["winner"]
+    if winner:
+        pw     = next((p for p in mv["pairwise"] if p["name"] == winner), {})
+        banner = (f"WINNER: {winner}   |   CR {pw.get('uplift_cr', 0):+.2f}%"
+                  f"   |   RPV {pw.get('uplift_rpv', 0):+.2f}%"
+                  f"   |   p = {pw.get('p_adjusted', 1):.4f}")
+        bg = C_GREEN
+    else:
+        banner = "No winner declared — test inconclusive or insufficient statistical power."
+        bg     = C_DARK
+    w_tbl = Table([[Paragraph(banner, s_win)]], colWidths=[USABLE])
+    w_tbl.setStyle(TableStyle([('BACKGROUND', (0,0), (-1,-1), bg),
+                                ('PADDING',    (0,0), (-1,-1), 10)]))
+    elems.append(w_tbl)
+    elems.append(Spacer(1, 12))
+
+    elems.append(Paragraph("Key Metrics", s_h1))
+    n   = len(metrics)
+    cw  = USABLE / (n + 1)
+    hdr = ["Metric"] + [m["name"] for m in metrics]
+    rows = [
+        ["Users"]       + [f"{m['users']:,}" for m in metrics],
+        ["Conversions"] + [f"{m['conv']:,}"  for m in metrics],
+        ["CR %"]        + [f"{m['cr_pct']:.2f}%" + (f" ({m['uplift_cr']:+.1f}%)" if i > 0 else "")
+                           for i, m in enumerate(metrics)],
+        ["AOV"]         + [f"${m['aov']:.2f}" + (f" ({m['uplift_aov']:+.1f}%)" if i > 0 else "")
+                           for i, m in enumerate(metrics)],
+        ["RPV"]         + [f"${m['rpv']:.4f}" + (f" ({m['uplift_rpv']:+.1f}%)" if i > 0 else "")
+                           for i, m in enumerate(metrics)],
+    ]
+    elems.append(_tbl([hdr] + rows, [cw] * (n + 1)))
+    elems.append(Spacer(1, 12))
+
+    # ── STATISTICAL ANALYSIS ─────────────────────────────────────
+    elems.append(Paragraph("Statistical Analysis", s_h1))
+    pw_hdr  = ["Variation", "Z-Stat", "p (adj)", "Significant", "CR Uplift", "RPV Uplift"]
+    pw_rows = [[pw["name"], f"{pw['z_stat']:.3f}", f"{pw['p_adjusted']:.4f}",
+                "YES" if pw["significant"] else "No",
+                f"{pw['uplift_cr']:+.2f}%", f"{pw['uplift_rpv']:+.2f}%"]
+               for pw in mv["pairwise"]]
+    sig_ex  = [('TEXTCOLOR', (3, i+1), (3, i+1), C_GREEN if pw["significant"] else C_RED)
+               for i, pw in enumerate(mv["pairwise"])]
+    elems.append(_tbl([pw_hdr] + pw_rows, [USABLE / 6] * 6, sig_ex))
+    elems.append(Spacer(1, 8))
+
+    elems.append(Paragraph("Bayesian Results", s_h2))
+    b_hdr  = ["Group", "P(Best)", "Expected Loss"]
+    b_rows = [[g, f"{bayes['prob_best'][g] * 100:.1f}%",
+               f"{bayes['expected_loss'][g] * 100:.4f}%"]
+              for g in bayes["prob_best"]]
+    elems.append(_tbl([b_hdr] + b_rows, [USABLE / 3] * 3))
+    elems.append(Spacer(1, 8))
+
+    elems.append(Paragraph("Revenue Significance (Control vs Best Variation)", s_h2))
+    r_hdr  = ["Metric", "MW p-value", "Bootstrap p", "CI Low", "CI High", "Significant"]
+    r_rows = [
+        ["AOV", f"{rev_sig['aov']['mw_p']:.4f}", f"{rev_sig['aov']['boot_p']:.4f}",
+         f"${rev_sig['aov']['boot_ci_low']:.2f}", f"${rev_sig['aov']['boot_ci_high']:.2f}",
+         "YES" if rev_sig['aov']['sig'] else "No"],
+        ["RPV", f"{rev_sig['rpv']['mw_p']:.4f}", f"{rev_sig['rpv']['boot_p']:.4f}",
+         f"${rev_sig['rpv']['boot_ci_low']:.4f}", f"${rev_sig['rpv']['boot_ci_high']:.4f}",
+         "YES" if rev_sig['rpv']['sig'] else "No"],
+    ]
+    r_ex = [('TEXTCOLOR', (5, i+1), (5, i+1), C_GREEN if sig else C_DARK)
+            for i, sig in enumerate([rev_sig["aov"]["sig"], rev_sig["rpv"]["sig"]])]
+    elems.append(_tbl([r_hdr] + r_rows, [USABLE / 6] * 6, r_ex))
+    elems.append(PageBreak())
+
+    # ── PAGE 2: HEALTH CHECKS ────────────────────────────────────
+    elems.append(Paragraph("Health Checks", s_h1))
+
+    elems.append(Paragraph("Sample Ratio Mismatch", s_h2))
+    srm_ok  = p_srm >= 0.01
+    srm_msg = (f"PASSED (p = {p_srm:.4f}) — Traffic split is even."
+               if srm_ok else
+               f"DETECTED (p = {p_srm:.4f}) — Traffic split is uneven. Results may be invalid.")
+    elems.append(Paragraph(srm_msg, _s('srm', 9, C_GREEN if srm_ok else C_RED, True)))
+    elems.append(Spacer(1, 6))
+
+    elems.append(Paragraph("Duration Analysis", s_h2))
+    _LVL = {"pass": C_GREEN, "warning": C_WARN, "error": C_RED}
+    for chk in duration_checks:
+        col = _LVL.get(chk["level"], C_DARK)
+        elems.append(Paragraph(f"[{chk['label']}] {chk['msg']}",
+                                _s(f'dc_{chk["id"]}', 9, col, chk["level"] != "pass")))
+    elems.append(Spacer(1, 6))
+
+    active_g = [r for r in guardrail_results if not r.get("skip")]
+    if active_g:
+        elems.append(Paragraph("Guardrail Metrics", s_h2))
+        g_hdr  = ["Metric", "Control", "Variation", "Change", "Threshold", "Status"]
+        g_rows = [[r["name"], f"{r['ctrl']:.2f}", f"{r['var']:.2f}",
+                   f"{r['delta_pct']:+.2f}%", f"±{r['threshold']:.1f}%",
+                   "VIOLATED" if r["violated"] else "PASS"]
+                  for r in active_g]
+        g_ex   = [('TEXTCOLOR', (5, i+1), (5, i+1), C_RED if r["violated"] else C_GREEN)
+                  for i, r in enumerate(active_g)]
+        elems.append(_tbl([g_hdr] + g_rows, [USABLE / 6] * 6, g_ex))
+    elems.append(PageBreak())
+
+    # ── PAGE 3: CHARTS ────────────────────────────────────────────
+    elems.append(Paragraph("Charts", s_h1))
+    with plt.rc_context(_PDF_RC):
+        # CR Comparison
+        cr_vals    = [m["cr_pct"] for m in metrics]
+        cr_labels  = [m["name"]   for m in metrics]
+        fig, ax    = plt.subplots(figsize=(10, 4))
+        ctrl_val   = cr_vals[0]
+        bar_colors = [GROUP_COLORS[i] if (i == 0 or v >= ctrl_val) else "#d62728"
+                      for i, v in enumerate(cr_vals)]
+        bars = ax.bar(cr_labels, cr_vals, color=bar_colors, alpha=0.85)
+        mx   = max(cr_vals) if max(cr_vals) > 0 else 1
+        ax.set_ylim(0, mx * 1.18)
+        ax.set_title("Conversion Rate by Group")
+        ax.set_ylabel("CR %")
+        for bar, v in zip(bars, cr_vals):
+            ax.text(bar.get_x() + bar.get_width() / 2, v + mx * 0.01,
+                    f"{v:.2f}%", ha="center", va="bottom", fontweight="bold", fontsize=9)
+        elems.append(Paragraph("Conversion Rate Comparison", s_h2))
+        elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
+        elems.append(Spacer(1, 8))
+
+        # Strategic Matrix
+        fig, ax  = plt.subplots(figsize=(9, 5))
+        ctrl_m0  = metrics[0]
+        for i, m in enumerate(metrics):
+            ax.scatter(m["cr_pct"], m["aov"], color=GROUP_COLORS[i], s=180,
+                       label=m["name"], zorder=5)
+            if i > 0:
+                ax.annotate("", xy=(m["cr_pct"], m["aov"]),
+                            xytext=(ctrl_m0["cr_pct"], ctrl_m0["aov"]),
+                            arrowprops=dict(arrowstyle="->", color=GROUP_COLORS[i], lw=1.5, ls="--"))
+        ax.axvline(ctrl_m0["cr_pct"], color="#888", ls=":", alpha=0.4)
+        ax.axhline(ctrl_m0["aov"],    color="#888", ls=":", alpha=0.4)
+        ax.set_title("Strategic Matrix: CR vs AOV")
+        ax.set_xlabel("Conversion Rate (%)")
+        ax.set_ylabel("Average Order Value ($)")
+        ax.legend()
+        elems.append(Paragraph("Strategic Matrix", s_h2))
+        elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
+        elems.append(Spacer(1, 8))
+
+        # Bayesian PDFs
+        fig, ax = plt.subplots(figsize=(11, 4))
+        for i, g in enumerate(groups):
+            a_  = g["conv"] + 1
+            b_  = max(g["users"] - g["conv"], 0) + 1
+            d_  = beta(a_, b_)
+            x_  = np.linspace(d_.ppf(0.001), d_.ppf(0.999), 1000)
+            ax.plot(x_, d_.pdf(x_), label=g["name"], color=GROUP_COLORS[i], lw=2)
+            ax.fill_between(x_, d_.pdf(x_), 0, alpha=0.15, color=GROUP_COLORS[i])
+        ax.set_title("Bayesian Posterior Distributions")
+        ax.set_xlabel("Conversion Rate")
+        ax.set_ylabel("Probability Density")
+        ax.legend()
+        elems.append(Paragraph("Bayesian Posteriors", s_h2))
+        elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
+        elems.append(Spacer(1, 8))
+
+        # Bootstrap CI
+        _rng  = np.random.default_rng(42)
+        _pc   = float(np.clip(safe_divide(ctrl_m["conv"], ctrl_m["users"]), 0.0, 1.0))
+        _pv   = float(np.clip(safe_divide(best_m["conv"], best_m["users"]), 0.0, 1.0))
+        _sc   = _rng.binomial(ctrl_m["users"], _pc, BOOTSTRAP_SAMPLES) / ctrl_m["users"]
+        _sv   = _rng.binomial(best_m["users"], _pv, BOOTSTRAP_SAMPLES) / best_m["users"]
+        diffs = _sv - _sc
+        ci_l  = float(np.percentile(diffs, 2.5))
+        ci_h  = float(np.percentile(diffs, 97.5))
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.hist(diffs, bins=60, color="#ff7f0e", edgecolor="#cccccc", alpha=0.85)
+        ax.axvline(ci_l, color="#E73B37", ls="--", lw=1.5, label="95% CI")
+        ax.axvline(ci_h, color="#E73B37", ls="--", lw=1.5)
+        ax.axvline(0,    color="#555555", lw=1.2, ls=":",  label="No effect")
+        ax.set_title(f"Bootstrap CR Difference ({best_m['name']} − Control)")
+        ax.set_xlabel("Difference in Conversion Rate")
+        ax.set_ylabel("Frequency")
+        ax.legend()
+        elems.append(Paragraph("Bootstrap Confidence Interval", s_h2))
+        elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
+
+    # ── PAGE 4 (optional): SMART ANALYSIS TEXT ───────────────────
+    if smart_text:
+        elems.append(PageBreak())
+        elems.append(Paragraph("Smart Analysis Report", s_h1))
+        elems.append(HRFlowable(width=USABLE, color=C_RED, thickness=1, spaceAfter=6))
+        for line in smart_text.split("\n"):
+            line = line.strip()
+            if not line:
+                elems.append(Spacer(1, 3))
+            elif line.startswith("### "):
+                elems.append(Paragraph(line[4:], s_h2))
+            elif line.startswith("## "):
+                elems.append(Paragraph(line[3:], _s('sh1', 11, C_DARK, True, TA_LEFT, 8, 3)))
+            elif line.startswith("# "):
+                elems.append(Paragraph(line[2:], s_h1))
+            elif line.startswith(("- ", "* ")):
+                elems.append(Paragraph("• " + _md(line[2:]), s_body))
+            else:
+                try:
+                    elems.append(Paragraph(_md(line), s_body))
+                except Exception:
+                    elems.append(Paragraph(line, s_body))
+
+    # ── FOOTER ────────────────────────────────────────────────────
+    elems.append(Spacer(1, 14))
+    elems.append(HRFlowable(width=USABLE, color=C_MGRAY, thickness=0.5))
+    elems.append(Paragraph(
+        "Generated by Enterprise A/B Test Analyzer. "
+        "Results are directional signals — validate data integrity before making business decisions.",
+        s_small))
+
+    doc.build(elems)
+    buf.seek(0)
+    return buf.getvalue()
 
 
 # -----------------------------------------------
@@ -574,18 +1188,18 @@ def plot_bayesian_pdfs(groups):
 
 def run_bootstrap_and_plot(uc, cc, uv, cv, alpha_val=0.05, label_v="Variation"):
     rng   = np.random.default_rng()
-    pc    = safe_divide(cc, uc)
-    pv    = safe_divide(cv, uv)
+    pc    = float(np.clip(safe_divide(cc, uc), 0.0, 1.0))
+    pv    = float(np.clip(safe_divide(cv, uv), 0.0, 1.0))
     sim_c = rng.binomial(uc, pc, BOOTSTRAP_SAMPLES) / uc
     sim_v = rng.binomial(uv, pv, BOOTSTRAP_SAMPLES) / uv
     diffs = sim_v - sim_c
     ci_l  = float(np.percentile(diffs, alpha_val / 2 * 100))
     ci_h  = float(np.percentile(diffs, (1 - alpha_val / 2) * 100))
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.hist(diffs, bins=60, color="orange", edgecolor="black", alpha=0.7)
-    ax.axvline(ci_l, color="red", ls="--", label=f"{(1-alpha_val)*100:.0f}% CI Lower")
-    ax.axvline(ci_h, color="red", ls="--", label=f"{(1-alpha_val)*100:.0f}% CI Upper")
-    ax.axvline(0,    color="black", lw=1.2, label="No effect")
+    ax.hist(diffs, bins=60, color="#ff7f0e", edgecolor="#1a1d24", alpha=0.85)
+    ax.axvline(ci_l, color="#E73B37", ls="--", lw=1.5, label=f"{(1-alpha_val)*100:.0f}% CI Lower")
+    ax.axvline(ci_h, color="#E73B37", ls="--", lw=1.5, label=f"{(1-alpha_val)*100:.0f}% CI Upper")
+    ax.axvline(0,    color="#e0e0e0", lw=1.2, ls=":", label="No effect")
     ax.set_title(f"Bootstrap CR Difference ({label_v} − Control)")
     ax.set_xlabel("Difference in Conversion Rate")
     ax.set_ylabel("Frequency")
@@ -597,7 +1211,11 @@ def run_bootstrap_and_plot(uc, cc, uv, cv, alpha_val=0.05, label_v="Variation"):
 def plot_box_plots(samples_c, samples_v, label_v="Best Variation"):
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.boxplot([samples_c, samples_v], patch_artist=True, widths=0.6,
-               boxprops=dict(facecolor="skyblue"))
+               boxprops=dict(facecolor="#1f77b4", alpha=0.8),
+               medianprops=dict(color="#E73B37", lw=2),
+               whiskerprops=dict(color="#e0e0e0"),
+               capprops=dict(color="#e0e0e0"),
+               flierprops=dict(marker="o", color="#E73B37", markersize=4, alpha=0.5))
     ax.set_xticks([1, 2])
     ax.set_xticklabels(["Control", label_v])
     ax.set_ylabel("Conversion Rate (%)")
@@ -624,7 +1242,7 @@ def plot_power_curve(base_cr, mdes, alpha, max_n):
         color = GROUP_COLORS[i % len(GROUP_COLORS)]
         ax.plot(sample_sizes, powers, label=f"MDE: {mde}%", lw=2, color=color)
 
-    ax.axhline(0.80, color="red", ls="--", label="80% Power Threshold")
+    ax.axhline(0.80, color="#E73B37", ls="--", lw=1.5, label="80% Power Threshold")
     ax.set_title(f"Statistical Power over Sample Size (Base CR: {base_cr}%)")
     ax.set_xlabel("Sample Size (per group)")
     ax.set_ylabel("Power")
@@ -637,45 +1255,14 @@ def plot_power_curve(base_cr, mdes, alpha, max_n):
 # ============================================================
 # SIDEBAR
 # ============================================================
-st.sidebar.markdown(
-    f'<div style="display:flex;align-items:center;">{ICON_SETTINGS}'
-    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Settings</h2></div>',
-    unsafe_allow_html=True,
-)
-
-with st.sidebar.expander("Save & Load Analysis", expanded=False):
-    st.info("Snapshot your experiment. Download Day 7, re-upload Day 14 to track evolution.")
-    snapshot = {k: st.session_state.get(k) for k in SAVE_KEYS}
-    st.download_button("Download Inputs (.json)", json.dumps(snapshot, indent=2),
-                       "experiment_snapshot.json", "application/json")
-    uploaded = st.file_uploader("Load Snapshot", type=["json"])
-    if uploaded is not None:
-        try:
-            loaded = json.load(uploaded)
-            for k in SAVE_KEYS:
-                if k in loaded:
-                    st.session_state[k] = loaded[k]
-            st.success("Snapshot loaded!")
-            st.rerun()
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            st.error(f"Could not load file: {e}")
-
-confidence_level = st.sidebar.selectbox(
-    "Confidence Level", ["95%", "90%", "99%"], index=0, key="conf_level",
-    help="⚡ 90% — Fast decisions  |  ⚖️ 95% — Standard  |  🐢 99% — High-stakes",
-)
-alpha = {"90%": 0.10, "95%": 0.05, "99%": 0.01}[confidence_level]
-
-st.sidebar.markdown("---")
-
-# --- Experiment Planning ---
+# ── 1. EXPERIMENT PLANNING ──────────────────────────────────────────────────
 st.sidebar.markdown(
     f'<div style="display:flex;align-items:center;">{ICON_CALENDAR}'
     '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Experiment Planning</h2></div>',
     unsafe_allow_html=True,
 )
 with st.sidebar.expander("Sample Size Calculator", expanded=False):
-    st.caption(f"Plan required traffic at {confidence_level} confidence, 80% power.")
+    st.caption("Plan required traffic before you start the test.")
     plan_traffic  = st.number_input("Traffic (Last 28 Days)", step=1000,  key="p_traffic")
     plan_base_cr  = st.number_input("Baseline CR (%)",        step=0.1,   key="p_base_cr")
     plan_base_aov = st.number_input("Baseline AOV ($)",       step=1.0,   key="p_base_aov")
@@ -684,6 +1271,8 @@ with st.sidebar.expander("Sample Size Calculator", expanded=False):
         ["Low (Subscription)", "Medium (Standard E-com)", "High (Whales/B2B)"],
         index=1, key="p_vol")
     sd_mult = {"Low": 1.0, "Medium": 2.0, "High": 3.0}[volatility.split()[0]]
+    _conf_for_plan = st.session_state.get("conf_level", "95%")
+    _alpha_for_plan = {"90%": 0.10, "95%": 0.05, "99%": 0.01}[_conf_for_plan]
     if st.button("Calculate Duration"):
         if plan_base_cr <= 0 or plan_base_aov <= 0 or plan_traffic <= 0:
             st.error("Traffic, Baseline CR, and AOV must all be > 0.")
@@ -692,11 +1281,11 @@ with st.sidebar.expander("Sample Size Calculator", expanded=False):
             p1      = plan_base_cr / 100
             p2      = p1 * (1 + plan_mde / 100)
             es_cr   = proportion_effectsize(p1, p2)
-            n_cr    = NormalIndPower().solve_power(effect_size=es_cr, alpha=alpha, power=0.8, ratio=1)
+            n_cr    = NormalIndPower().solve_power(effect_size=es_cr, alpha=_alpha_for_plan, power=0.8, ratio=1)
             est_sd  = plan_base_aov * sd_mult
             es_rpv  = safe_divide(plan_base_aov * plan_mde / 100, est_sd)
             if es_rpv > 0:
-                n_rpv     = TTestIndPower().solve_power(effect_size=es_rpv, alpha=alpha, power=0.8, ratio=1)
+                n_rpv     = TTestIndPower().solve_power(effect_size=es_rpv, alpha=_alpha_for_plan, power=0.8, ratio=1)
                 n_rpv_vis = safe_divide(n_rpv, p1)
                 days_rpv  = safe_divide(n_rpv_vis * 2, daily)
             else:
@@ -710,9 +1299,77 @@ with st.sidebar.expander("Sample Size Calculator", expanded=False):
 
 st.sidebar.markdown("---")
 
-# --- Data Inputs ---
+# ── 2. SETTINGS ─────────────────────────────────────────────────────────────
 st.sidebar.markdown(
-    f'<div style="display:flex;align-items:center;">{ICON_TROPHY}'
+    f'<div style="display:flex;align-items:center;">{ICON_SETTINGS}'
+    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Settings</h2></div>',
+    unsafe_allow_html=True,
+)
+
+days_run = st.sidebar.number_input("Days Test Ran", min_value=1, key="days")
+st.sidebar.date_input(
+    "Test Start Date (optional)",
+    value=st.session_state.get("start_date"),
+    key="start_date",
+    help="Enables day-of-week bias detection. Leave blank to skip.",
+)
+
+confidence_level = st.sidebar.selectbox(
+    "Confidence Level", ["95%", "90%", "99%"], index=0, key="conf_level",
+    help="90% — Fast decisions  |  95% — Standard  |  99% — High-stakes",
+)
+alpha = {"90%": 0.10, "95%": 0.05, "99%": 0.01}[confidence_level]
+
+st.sidebar.selectbox(
+    "Primary Goal",
+    options=["Maximize CR", "Maximize Revenue", "Balanced"],
+    key="primary_goal",
+    help=(
+        "Maximize CR: Winner = highest conversion rate uplift.\n"
+        "Maximize Revenue: Winner = highest RPV uplift — a lower-CR variant can win if it earns more per visitor.\n"
+        "Balanced: Composite score weighting CR (40%) and RPV (60%)."
+    ),
+)
+primary_goal = st.session_state.get("primary_goal", "Maximize CR")
+
+with st.sidebar.expander("Guardrail Metrics", expanded=False):
+    st.caption("Secondary metrics that must not degrade when you ship a winner.")
+    num_guardrails = st.selectbox("Number of guardrail metrics", [1, 2, 3], key="num_guardrails")
+    _GUARD_LABELS = ["Guardrail 1", "Guardrail 2", "Guardrail 3"]
+    _DIR_OPTIONS  = ["lower is better", "higher is better"]
+    for _gi in range(int(num_guardrails)):
+        st.markdown(f"**{_GUARD_LABELS[_gi]}**")
+        st.text_input("Metric name",            key=f"g{_gi}_name")
+        st.number_input("Control value",        min_value=0.0, format="%.2f", key=f"g{_gi}_ctrl")
+        st.number_input("Variation value",      min_value=0.0, format="%.2f", key=f"g{_gi}_var")
+        st.number_input("Max allowed change (%)", min_value=0.1, step=0.5, key=f"g{_gi}_threshold")
+        st.selectbox("Direction", _DIR_OPTIONS, key=f"g{_gi}_dir")
+        if _gi < int(num_guardrails) - 1:
+            st.markdown("---")
+
+if int(st.session_state.get("num_variations", 1)) > 1:
+    st.sidebar.selectbox(
+        "Multiple Comparison Correction",
+        options=["holm", "bonferroni", "fdr_bh"],
+        format_func=lambda x: {
+            "holm":       "Holm-Bonferroni (recommended)",
+            "bonferroni": "Bonferroni (most conservative)",
+            "fdr_bh":     "Benjamini-Hochberg (FDR)",
+        }[x],
+        key="mc_method",
+        help=(
+            "Holm: Controls FWER, more powerful than Bonferroni. Best for most tests.\n"
+            "Bonferroni: Most conservative — use when false positives are very costly.\n"
+            "FDR (B-H): Controls false discovery rate — best for exploratory multi-variant tests."
+        ),
+    )
+mc_method = st.session_state.get("mc_method", "holm")
+
+st.sidebar.markdown("---")
+
+# ── 3. ENTER RESULTS ────────────────────────────────────────────────────────
+st.sidebar.markdown(
+    f'<div style="display:flex;align-items:center;">{ICON_BAR_CHART}'
     '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Enter Results</h2></div>',
     unsafe_allow_html=True,
 )
@@ -742,26 +1399,30 @@ for i in range(int(num_variations)):
     })
 
 st.sidebar.markdown("---")
-days_run = st.sidebar.number_input("Days Test Ran", min_value=1, key="days")
 
-if num_variations > 1:
-    st.sidebar.markdown("---")
-    st.sidebar.selectbox(
-        "Multiple Comparison Correction",
-        options=["holm", "bonferroni", "fdr_bh"],
-        format_func=lambda x: {
-            "holm":       "Holm-Bonferroni (recommended)",
-            "bonferroni": "Bonferroni (most conservative)",
-            "fdr_bh":     "Benjamini-Hochberg (FDR)",
-        }[x],
-        key="mc_method",
-        help=(
-            "Holm: Controls FWER, more powerful than Bonferroni. Best for most tests.\n"
-            "Bonferroni: Most conservative — use when false positives are very costly.\n"
-            "FDR (B-H): Controls false discovery rate — best for exploratory multi-variant tests."
-        ),
-    )
-mc_method = st.session_state.get("mc_method", "holm")
+# ── 4. SAVE & LOAD ───────────────────────────────────────────────────────────
+st.sidebar.markdown(
+    f'<div style="display:flex;align-items:center;">{ICON_UPLOAD}'
+    '<h2 style="display:inline;font-size:1.5rem;margin-left:5px;">Save & Load Analysis</h2></div>',
+    unsafe_allow_html=True,
+)
+st.sidebar.info("Snapshot your experiment. Download Day 7, re-upload Day 14 to track evolution.")
+snapshot = {k: st.session_state.get(k) for k in SAVE_KEYS}
+st.sidebar.download_button("Download Inputs (.json)", json.dumps(snapshot, indent=2),
+                   "experiment_snapshot.json", "application/json")
+_pdf_requested = st.sidebar.button("Prepare PDF Report", key="_pdf_btn",
+                                    help="Builds a full PDF report with tables, charts, and analysis.")
+uploaded = st.sidebar.file_uploader("Load Snapshot", type=["json"])
+if uploaded is not None:
+    try:
+        loaded = json.load(uploaded)
+        for k in SAVE_KEYS:
+            if k in loaded:
+                st.session_state[k] = loaded[k]
+        st.sidebar.success("Snapshot loaded!")
+        st.rerun()
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        st.sidebar.error(f"Could not load file: {e}")
 
 
 # ============================================================
@@ -769,7 +1430,12 @@ mc_method = st.session_state.get("mc_method", "holm")
 # ============================================================
 groups = [{"name": "Control", "users": users_c, "conv": conv_c, "rev": rev_c, "prod": prod_c}] + var_inputs
 
-mv      = run_multivariate_analysis(groups, alpha, mc_method)
+# Input validation — warn in sidebar if conversions exceed users for any group
+for _g in groups:
+    if _g["conv"] > _g["users"]:
+        st.sidebar.error(f"⚠ {_g['name']}: Conversions ({_g['conv']:,}) exceed Users ({_g['users']:,}). Conversions will be clamped.")
+
+mv      = run_multivariate_analysis(groups, alpha, mc_method, primary_goal)
 bayes   = calculate_bayesian_multivariate(groups)
 srm_stat, p_srm = perform_srm_test([g["users"] for g in groups])
 
@@ -790,11 +1456,42 @@ rev_sig = test_revenue_significance(
     alpha=alpha,
 )
 
+_guardrail_inputs = [
+    {
+        "name":      st.session_state[f"g{i}_name"],
+        "ctrl_val":  float(st.session_state[f"g{i}_ctrl"]),
+        "var_val":   float(st.session_state[f"g{i}_var"]),
+        "threshold": float(st.session_state[f"g{i}_threshold"]),
+        "direction": st.session_state[f"g{i}_dir"],
+    }
+    for i in range(int(st.session_state.get("num_guardrails", 1)))
+]
+guardrail_results = evaluate_guardrails(_guardrail_inputs)
+duration_checks   = analyze_test_duration(days_run, st.session_state.get("start_date"))
+
+# ---- PDF generation (triggered by sidebar button, runs after all data is ready) ----
+if _pdf_requested:
+    st.session_state["_pdf_bytes"] = generate_pdf_report(
+        mv, bayes, rev_sig, guardrail_results, duration_checks,
+        p_srm, groups, days_run, confidence_level, primary_goal,
+        ctrl_m, best_m,
+        hypothesis=st.session_state.get("hyp_smart", ""),
+        smart_text=st.session_state.get("_smart_report_text", ""),
+    )
+if st.session_state.get("_pdf_bytes"):
+    st.sidebar.download_button(
+        "Download PDF Report",
+        data=st.session_state["_pdf_bytes"],
+        file_name=f"ab_test_report_{datetime.date.today().isoformat()}.pdf",
+        mime="application/pdf",
+        key="_pdf_dl",
+    )
+
 # ---- Pre-compute bootstrap samples at top level so both Tab 9 & Tab 10
 #      can share the same data without cross-tab session-state coupling. ----
 _boot_rng   = np.random.default_rng()
-_boot_pc    = safe_divide(ctrl_m["conv"], ctrl_m["users"])
-_boot_pv    = safe_divide(best_m["conv"], best_m["users"])
+_boot_pc    = float(np.clip(safe_divide(ctrl_m["conv"], ctrl_m["users"]), 0.0, 1.0))
+_boot_pv    = float(np.clip(safe_divide(best_m["conv"], best_m["users"]), 0.0, 1.0))
 _boot_sc    = _boot_rng.binomial(ctrl_m["users"], _boot_pc, BOOTSTRAP_SAMPLES) / ctrl_m["users"] * 100
 _boot_sv    = _boot_rng.binomial(best_m["users"], _boot_pv, BOOTSTRAP_SAMPLES) / best_m["users"] * 100
 
@@ -828,14 +1525,18 @@ for m in mv["metrics"]:
         "RPV":         f"${m['rpv']:.2f}",
         "RPV Uplift":  f"{m['uplift_rpv']:+.2f}%" if pw else "—",
         "AOV":         f"${m['aov']:.2f}",
-        "p (adj)":     f"{pw['p_adjusted']:.4f}" if pw else "—",
+        "p (adj)":     (f"{pw['p_adjusted']:.4f}" if np.isfinite(pw['p_adjusted']) else "—") if pw else "—",
         "Significant": ("✅" if pw["significant"] else "❌") if pw else "—",
     })
 st.dataframe(pd.DataFrame(kpi_rows), use_container_width=True, hide_index=True)
 
 # Winner callout
 if mv["winner"]:
-    st.success(f"🏆 **Winner: {mv['winner']}** — highest significant CR uplift after {mc_method.upper()} correction.")
+    st.markdown(
+        f'<div style="background:#1a3d1a;border-left:4px solid #2ca02c;padding:10px 16px;border-radius:4px;">'
+        f'{ICON_TROPHY}<strong>Winner: {mv["winner"]}</strong> — best overall performance after {mc_method.upper()} correction (CR → RPV → AOV → product efficiency).</div>',
+        unsafe_allow_html=True,
+    )
     if mv.get("winner_rpv_negative"):
         st.warning(
             f"⚠️ **Volume Play Warning:** {mv['winner']} has a negative RPV uplift. "
@@ -875,7 +1576,7 @@ direction = "more" if rpv_delta >= 0 else "less"
 st.write(f"**Financial Impact ({best_m['name']}):** ${abs(rpv_delta):.2f} {direction} per visitor.")
 
 # Revenue significance expander
-with st.expander(f"📊 Revenue Significance — Control vs {best_m['name']}", expanded=False):
+with st.expander(f"Revenue Significance — Control vs {best_m['name']}", expanded=False):
     st.caption(
         "Revenue is skewed by large orders — z-tests are unreliable. "
         "Uses Mann-Whitney U and log-transformed bootstrap. "
@@ -914,19 +1615,82 @@ with st.expander(f"📊 Revenue Significance — Control vs {best_m['name']}", e
 
 # --- Health Checks ---
 st.subheader("4. Health Checks")
-hc1, hc2 = st.columns(2)
+hc1, hc2, hc3 = st.columns(3)
+
 with hc1:
     if p_srm < 0.01:
-        st.error(f"⚠️ SRM DETECTED (p={p_srm:.4f}) — traffic split uneven. Results may be invalid.")
+        st.error(f"SRM DETECTED (p={p_srm:.4f}) — traffic split uneven. Results may be invalid.")
     else:
-        st.success(f"✅ SRM PASSED (p={p_srm:.4f})")
+        st.success(f"SRM PASSED (p={p_srm:.4f})")
+
+_RENDER = {"error": st.error, "warning": st.warning, "pass": st.success}
+
 with hc2:
-    if days_run < 7:
-        st.error(f"⚠️ Too short ({days_run} days) — results unreliable.")
-    elif days_run < 14:
-        st.warning(f"⚠️ Short duration ({days_run} days) — watch for novelty effects.")
+    _dur_ids = {"too_short", "novelty", "duration_ok"}
+    for _chk in duration_checks:
+        if _chk["id"] in _dur_ids:
+            _RENDER[_chk["level"]](f"**{_chk['label']}:** {_chk['msg']}")
+
+with hc3:
+    _biz_ids = {"incomplete_weeks", "weeks_ok", "long_running", "dow_bias", "dow_ok"}
+    _biz_checks = [c for c in duration_checks if c["id"] in _biz_ids]
+    if not _biz_checks:
+        st.success("Business cycle: No issues detected.")
     else:
-        st.success(f"✅ Duration OK ({days_run} days)")
+        for _chk in _biz_checks:
+            _RENDER[_chk["level"]](f"**{_chk['label']}:** {_chk['msg']}")
+
+st.markdown("---")
+
+# --- Guardrail Metrics ---
+st.subheader("5. Guardrail Metrics")
+st.caption("Secondary metrics that must not degrade when shipping a winner. Configure thresholds in the sidebar.")
+
+_SVG_PASS = """<svg viewBox="0 0 1024 1024" style="width:1em;height:1em;vertical-align:middle;margin-right:6px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 64C264 64 64 264 64 512s200 448 448 448 448-200 448-448S760 64 512 64z m0 856C291 920 108 737 108 512S291 104 512 104s404 183 404 404-183 404-404 404z" fill="#2ca02c"/><path d="M420 680l-160-160 31-31 129 129 269-269 31 31z" fill="#2ca02c"/></svg>"""
+_SVG_FAIL = """<svg viewBox="0 0 1024 1024" style="width:1em;height:1em;vertical-align:middle;margin-right:6px;" xmlns="http://www.w3.org/2000/svg"><path d="M512 64C264 64 64 264 64 512s200 448 448 448 448-200 448-448S760 64 512 64z m0 856C291 920 108 737 108 512S291 104 512 104s404 183 404 404-183 404-404 404z" fill="#E73B37"/><path d="M676 320l-164 164-164-164-28 28 164 164-164 164 28 28 164-164 164 164 28-28-164-164 164-164z" fill="#E73B37"/></svg>"""
+
+_active_guardrails = [r for r in guardrail_results if not r["skip"]]
+if _active_guardrails:
+    _any_violated = any(r["violated"] for r in _active_guardrails)
+    if _any_violated:
+        st.markdown(
+            f'<div style="background:#3d1a1a;border-left:4px solid #E73B37;padding:10px 16px;border-radius:4px;margin-bottom:12px;">'
+            f'{_SVG_FAIL}<span style="color:#E73B37;font-weight:600;">One or more guardrail metrics are violated — review before shipping.</span></div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            f'<div style="background:#1a3d1a;border-left:4px solid #2ca02c;padding:10px 16px;border-radius:4px;margin-bottom:12px;">'
+            f'{_SVG_PASS}<span style="color:#2ca02c;font-weight:600;">All guardrail metrics are within acceptable thresholds.</span></div>',
+            unsafe_allow_html=True,
+        )
+    g_cols = st.columns(len(guardrail_results))
+    for col, r in zip(g_cols, guardrail_results):
+        with col:
+            if r["skip"]:
+                st.info(f"**{r['name']}**\n\nNo control value entered.")
+            else:
+                arrow  = "▲" if r["delta_pct"] > 0 else "▼"
+                st.metric(
+                    label=r["name"],
+                    value=f"{r['var']:.2f}",
+                    delta=f"{arrow} {abs(r['delta_pct']):.1f}% (limit ±{r['threshold']}%)",
+                    delta_color="inverse" if r["direction"] == "lower is better" else "normal",
+                )
+                if r["violated"]:
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;margin-top:4px;">'
+                        f'{_SVG_FAIL}<span style="color:#E73B37;font-size:0.85em;">Exceeds {r["threshold"]}% threshold ({r["direction"]})</span></div>',
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        f'<div style="display:flex;align-items:center;margin-top:4px;">'
+                        f'{_SVG_PASS}<span style="color:#2ca02c;font-size:0.85em;">Within {r["threshold"]}% threshold ({r["direction"]})</span></div>',
+                        unsafe_allow_html=True,
+                    )
+else:
+    st.info("Enter guardrail metric values in the sidebar to enable this check.")
 
 st.markdown("---")
 
@@ -985,11 +1749,18 @@ with tab1:
     hyp_smart = st.text_area("Hypothesis:", placeholder="We believed that...", height=70, key="hyp_smart")
     if st.button("Generate Smart Report"):
         smart_payload = {
-            "days": days_run,
-            "p_srm": p_srm,
+            "days":             days_run,
+            "p_srm":            p_srm,
+            "rev_sig":          rev_sig,
+            "guardrail_results": guardrail_results,
+            "duration_checks":  duration_checks,
+            "primary_goal":     primary_goal,
+            "metrics":          mv["metrics"],
         }
+        _smart_text = generate_smart_analysis(hyp_smart, mv, bayes, smart_payload, alpha)
+        st.session_state["_smart_report_text"] = _smart_text
         st.markdown("---")
-        st.markdown(generate_smart_analysis(hyp_smart, mv, bayes, smart_payload, alpha))
+        st.markdown(_smart_text)
 
 # ---- TAB 2: AI ANALYSIS ----
 with tab2:

@@ -8,7 +8,7 @@ This file documents the codebase for Claude (or any AI assistant) working on thi
 
 A single-file Streamlit application (`ab_test_analyzer.py`) for analysing A/B and A/B/n experiments. It accepts aggregate experiment data (no raw event logs), computes frequentist and Bayesian statistics, detects data quality issues, and generates both rule-based and AI-powered written reports.
 
-**Key constraint:** The entire app is one Python file (~1,040 lines). There is no build step, no database, no separate backend. Everything runs top-to-bottom on each Streamlit rerender.
+**Key constraint:** The entire app is one Python file (~1,460 lines). There is no build step, no database, no separate backend. Everything runs top-to-bottom on each Streamlit rerender.
 
 ---
 
@@ -81,6 +81,17 @@ All state is managed via `st.session_state`. The `initialize_state()` function s
 | `days` | int | Test duration in days |
 | `conf_level` | str | `"90%"` / `"95%"` / `"99%"` |
 | `mc_method` | str | `"holm"` / `"bonferroni"` / `"fdr_bh"` |
+| `primary_goal` | str | `"Maximize CR"` / `"Maximize Revenue"` / `"Balanced"` — drives winner logic |
+
+### Guardrail metric keys (saved in JSON snapshots)
+| Key | Type | Description |
+|---|---|---|
+| `num_guardrails` | int | 1–3; drives dynamic guardrail input rendering |
+| `g0_name` / `g1_name` / `g2_name` | str | Metric label (e.g. "Bounce Rate") |
+| `g0_ctrl` / `g1_ctrl` / `g2_ctrl` | float | Control group value |
+| `g0_var` / `g1_var` / `g2_var` | float | Best variation value |
+| `g0_threshold` / `g1_threshold` / `g2_threshold` | float | Max allowed change % |
+| `g0_dir` / `g1_dir` / `g2_dir` | str | `"lower is better"` / `"higher is better"` |
 
 ### Planning calculator keys
 `p_traffic`, `p_base_cr`, `p_base_aov`, `p_mde`, `p_vol`
@@ -133,6 +144,7 @@ mv = {
     "uplift_cr":   float,   # % uplift in conversion rate vs control
     "uplift_aov":  float,   # % uplift in AOV vs control
     "uplift_rpv":  float,   # % uplift in RPV vs control
+    "uplift_apo":  float,   # % uplift in avg products per order vs control (tiebreaker)
 }
 ```
 
@@ -179,16 +191,41 @@ rev_sig = {
 
 ## Key Functions
 
-### `run_multivariate_analysis(groups, alpha, mc_method)` — lines ~111–198
+### `run_multivariate_analysis(groups, alpha, mc_method, primary_goal)` — lines ~220–350
 The central statistical engine. Called once per rerender with the full groups list.
 
 - Computes per-group metrics (CR, AOV, RPV, APO, APU, uplifts)
+- CR is clamped to 1.0 (`min(conv/users, 1.0)`) to guard against bad inputs
+- NaN p-values from degenerate inputs are sanitised to 1.0 before `multipletests`
 - Omnibus chi-square via `chi2_contingency` on a (n_groups × 2) contingency table
 - Pairwise z-tests via `proportions_ztest` for each variation vs control
 - Multiple comparison correction via `multipletests(raw_p_values, method=mc_method)`
-- Winner selection: significant variation with highest CR uplift
+- Winner selection: **goal-based with a 4-level tiebreaker chain** (see below)
+
+**Winner selection logic by `primary_goal`:**
+
+| Goal | Candidate filter | Sort key |
+|---|---|---|
+| `"Maximize CR"` | significant AND `uplift_cr > 0`; prefers those with `uplift_rpv >= 0` | `(uplift_cr, uplift_rpv, uplift_aov, -uplift_apo)` |
+| `"Maximize Revenue"` | significant AND `uplift_rpv > 0`; prefers those with `uplift_cr >= 0` | `(uplift_rpv, uplift_cr, uplift_aov, -uplift_apo)` |
+| `"Balanced"` | significant AND `0.4×CR + 0.6×RPV > 0`; prefers both metrics non-negative | `(composite, uplift_aov, -uplift_apo)` |
+
+If no "clean" winner (all tiebreakers met), falls back to any significant candidate. If none, `winner = None`.
 
 **Important:** In classic A/B mode (1 variation), `multipletests` with a single p-value is equivalent to no correction. The adjusted p-value equals the raw p-value.
+
+### `evaluate_guardrails(guardrails)` — lines ~183–218
+Threshold-based check on secondary metrics. No p-values — uses % change vs user-defined max allowed delta. Standard CRO guardrail pattern: p-values on small samples produce too many false signals.
+
+```python
+# Input per guardrail:
+{"name": str, "ctrl_val": float, "var_val": float, "threshold": float, "direction": str}
+# Output per guardrail:
+{"name": str, "ctrl": float, "var": float, "delta_pct": float,
+ "threshold": float, "direction": str, "violated": bool, "skip": bool}
+```
+
+`skip=True` when `ctrl_val == 0` (no data entered). `violated=True` when the change exceeds the threshold in the wrong direction.
 
 ### `calculate_bayesian_multivariate(groups)` — lines ~204–226
 Monte Carlo across all groups simultaneously.
@@ -213,19 +250,21 @@ Uses `scipy.stats.chisquare` (goodness-of-fit), **not** `chi2_contingency`. Defa
 
 ---
 
-## The Dashboard Computation Block (lines ~706–725)
+## The Dashboard Computation Block (lines ~1030–1075)
 
-This is the only place where `groups`, `mv`, `bayes`, `p_srm`, `ctrl_m`, `best_m`, and `rev_sig` are created. Everything below this block reads from these variables.
+This is the only place where `groups`, `mv`, `bayes`, `p_srm`, `ctrl_m`, `best_m`, `rev_sig`, `guardrail_results`, and `duration_checks` are created. Everything below reads from these variables. PDF generation also runs here (triggered by `_pdf_requested` flag set by the sidebar button).
 
 ```python
-groups = [ctrl_dict] + var_inputs         # built from sidebar widget values
-mv     = run_multivariate_analysis(...)   # all stats
+groups = [ctrl_dict] + var_inputs                        # built from sidebar widget values
+mv     = run_multivariate_analysis(..., primary_goal)    # all stats
 bayes  = calculate_bayesian_multivariate(...)
 srm_stat, p_srm = perform_srm_test(...)
-ctrl_m = mv["metrics"][0]                 # always Control
+ctrl_m = mv["metrics"][0]                                # always Control
 best_m = max(mv["metrics"][1:], key=lambda m: m["cr"])  # best variation by CR
 best_g = next(g for g in groups if g["name"] == best_m["name"])
 rev_sig = test_revenue_significance(ctrl vs best_g only)
+# Guardrail inputs pulled from session_state, then evaluated:
+guardrail_results = evaluate_guardrails(_guardrail_inputs)
 ```
 
 `best_m` is used as the "focal" variation for bootstrap, box plot, and revenue significance. It is not necessarily the statistically significant winner — it is simply the variation with the highest observed CR.
@@ -309,17 +348,34 @@ All plot functions call `plt.close(fig)` after `st.pyplot(fig)` to prevent memor
 
 Multi-variant bar charts (`plot_multivariant_bar`) colour bars using `GROUP_COLORS` — blue for Control, then green/orange/purple for variations. Bars that are below the control value are coloured red (`#d62728`) regardless of group index.
 
+### Dark theme
+
+A global `plt.rcParams.update({...})` block runs immediately after `matplotlib.use("Agg")` to match Streamlit's dark UI (`#0e1117`). Key values:
+
+| Setting | Value |
+|---|---|
+| `figure.facecolor` / `savefig.facecolor` | `#0e1117` (Streamlit page bg) |
+| `axes.facecolor` | `#1a1d24` (slightly lighter panel) |
+| Text / ticks / labels | `#e0e0e0` |
+| Grid color / linewidth | `#2e3140` / `0.7` |
+| Spine color | `#3a3f52` |
+| Top/right spines | disabled |
+| DPI | `120` |
+| Accent (CI lines, median lines, power curve threshold) | `#E73B37` |
+
+Do not add `color="black"` or `color="white"` to any plot element — let rcParams handle it. Exceptions: histogram edge color uses `#1a1d24` (matches axes bg), box plot face uses `#1f77b4`.
+
 ---
 
 ## Editing Rules
 
-1. **Always read the section you are editing before changing it.** The file is 1,040 lines and the view tool truncates. Use `view_range` to read specific sections.
+1. **Always read the section you are editing before changing it.** The file is ~1,460 lines and the view tool truncates. Use `offset`/`limit` parameters to read specific sections.
 
 2. **Do not reorder top-level sections.** The sidebar must render before the computation block, which must run before the dashboard and tabs.
 
 3. **All new statistical functions go between `perform_srm_test` and `run_multivariate_analysis`.** Keep the function block contiguous.
 
-4. **New sidebar widgets go inside the "Data Inputs" expander or below `days_run`, before the computation block.** Never add widget calls after the computation block.
+4. **Sidebar structure (in order):** 1) Experiment Planning (sample size calculator), 2) Settings (days, confidence, primary goal, guardrail metrics expander, MCC selector), 3) Enter Results (group inputs), 4) Save & Load Analysis. New widgets go in the appropriate section. MCC selector is conditional on `int(st.session_state.get("num_variations", 1)) > 1`. Never add widget calls after the computation block.
 
 5. **Adding a new tab:** Add the variable to the `st.tabs([...])` call, increment tab count, and add a `with tabN:` block at the bottom. Tab index must match declaration order.
 
@@ -340,9 +396,15 @@ Multi-variant bar charts (`plot_multivariant_bar`) colour bars using `GROUP_COLO
 | `plt.close(fig)` after every `st.pyplot()` | Prevents memory accumulation across rerenders |
 | Bootstrap stores results in `session_state` | tab10 needs tab9's data but tabs render independently; state bridge is the safe pattern |
 | Revenue sig only tests Control vs best | All-pairwise revenue tests are expensive and directional signals are sufficient at this stage |
-| Winner = highest CR uplift among significant | RPV could theoretically be the tiebreaker, but CR is the primary hypothesis metric |
+| Winner selection is goal-based with 4-level tiebreaker | CR-only winner was wrong for "Maximize Revenue" scenarios; tiebreaker chain (`uplift_cr, uplift_rpv, uplift_aov, -uplift_apo`) breaks ties deterministically |
+| Guardrails use % threshold, not p-values | p-values on secondary metrics with small samples produce too many false signals; threshold-based check is standard CRO practice |
 | No AI report title / no hypothesis header | Previous version re-rendered the hypothesis as a header, creating a redundant heading above the AI output |
 | Omnibus banner only shown for multi-variant | In classic A/B, the omnibus and z-test are identical — showing both would be confusing |
+| CR clamped to `min(conv/users, 1.0)` | Guards against bad inputs (conv > users) that caused NaN p-values and broke `multipletests` |
+| NaN p-values replaced with `1.0` before `multipletests` | `proportions_ztest` returns NaN for degenerate inputs (e.g. zero-variance groups); `multipletests` crashes on NaN |
+| Bootstrap probability clamped via `np.clip(..., 0.0, 1.0)` | `safe_divide` can return >1.0 when conv > users; `np.random.binomial` requires `0 ≤ p ≤ 1` |
+| `reconstruct_order_values` clamps `n_conv = min(n_conv, n_users)` | Prevents `ValueError: Cannot take a larger sample than population` in `np.random.choice` without replacement |
+| No emojis in UI | User preference — emojis give a "cheap feel". All status indicators use inline SVG icons or plain text markers |
 
 ---
 
@@ -355,10 +417,10 @@ These were agreed upon in previous sessions but not yet built. Check before star
 3. ~~MDE visualisation — power curves showing effect size vs sample size~~ ✅ Done
 4. Segment breakdown explorer — per-segment CR/RPV with filters
 5. CUPED variance reduction — covariate adjustment using pre-experiment metric
-6. PDF export — downloadable report from the full analysis
-7. Guardrail metrics section — secondary metrics with their own significance tests
+6. ~~PDF export — downloadable report from the full analysis~~ ✅ Done
+7. ~~Guardrail metrics section — secondary metrics with threshold-based checks~~ ✅ Done
 8. Test history log — persistent record of past experiments
-9. Smarter duration warnings — business cycle checks, day-of-week bias detection
+9. ~~Smarter duration warnings — business cycle checks, day-of-week bias detection~~ ✅ Done
 
 ---
 
@@ -373,6 +435,7 @@ statsmodels    # proportions_ztest, proportion_confint, proportion_effectsize,
                # NormalIndPower, TTestIndPower, multipletests
 matplotlib
 openai         # used for both OpenAI and DeepSeek via base_url override
+reportlab      # PDF generation — pip install reportlab
 ```
 
 No pinned versions. The app was built and tested against current stable releases as of early 2026.
