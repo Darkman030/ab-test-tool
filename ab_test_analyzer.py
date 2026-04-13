@@ -125,12 +125,25 @@ def initialize_state():
         "g0_name": "Bounce Rate",       "g0_ctrl": 45.0, "g0_var": 0.0, "g0_threshold": 5.0, "g0_dir": "lower is better",
         "g1_name": "Session Duration",  "g1_ctrl": 0.0,  "g1_var": 0.0, "g1_threshold": 5.0, "g1_dir": "higher is better",
         "g2_name": "Add-to-Cart Rate",  "g2_ctrl": 0.0,  "g2_var": 0.0, "g2_threshold": 5.0, "g2_dir": "higher is better",
+        # Segment breakdown
+        "num_segments": 1,
+        "seg0_name": "Mobile",   "seg1_name": "Desktop",   "seg2_name": "Segment 3", "seg3_name": "Segment 4",
+        "seg0_uc": 0, "seg0_cc": 0, "seg0_rc": 0.0, "seg0_uv": 0, "seg0_cv": 0, "seg0_rv": 0.0,
+        "seg1_uc": 0, "seg1_cc": 0, "seg1_rc": 0.0, "seg1_uv": 0, "seg1_cv": 0, "seg1_rv": 0.0,
+        "seg2_uc": 0, "seg2_cc": 0, "seg2_rc": 0.0, "seg2_uv": 0, "seg2_cv": 0, "seg2_rv": 0.0,
+        "seg3_uc": 0, "seg3_cc": 0, "seg3_rc": 0.0, "seg3_uv": 0, "seg3_cv": 0, "seg3_rv": 0.0,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 initialize_state()
+
+# Apply any snapshot that was staged on the previous rerun (before widgets instantiate)
+if "_pending_load" in st.session_state:
+    _staged = st.session_state.pop("_pending_load")
+    for k, v in _staged.items():
+        st.session_state[k] = v
 
 SAVE_KEYS = [
     "num_variations",
@@ -148,6 +161,12 @@ SAVE_KEYS = [
     "g0_name","g0_ctrl","g0_var","g0_threshold","g0_dir",
     "g1_name","g1_ctrl","g1_var","g1_threshold","g1_dir",
     "g2_name","g2_ctrl","g2_var","g2_threshold","g2_dir",
+    # Segment breakdown
+    "num_segments",
+    "seg0_name","seg0_uc","seg0_cc","seg0_rc","seg0_uv","seg0_cv","seg0_rv",
+    "seg1_name","seg1_uc","seg1_cc","seg1_rc","seg1_uv","seg1_cv","seg1_rv",
+    "seg2_name","seg2_uc","seg2_cc","seg2_rc","seg2_uv","seg2_cv","seg2_rv",
+    "seg3_name","seg3_uc","seg3_cc","seg3_rc","seg3_uv","seg3_cv","seg3_rv",
 ]
 
 
@@ -279,6 +298,52 @@ def evaluate_guardrails(guardrails):
             "direction": g["direction"],
             "violated":  violated,
             "skip":      False,
+        })
+    return results
+
+
+# -----------------------------------------------
+# SEGMENT BREAKDOWN ENGINE
+# -----------------------------------------------
+def analyze_segments(segments, alpha):
+    """
+    segments: list of dicts — name, uc, cc, rc, uv, cv, rv.
+    Returns one result dict per segment. No MCC — exploratory consistency check.
+    """
+    results = []
+    for s in segments:
+        uc, cc, rc = s["uc"], s["cc"], s["rc"]
+        uv, cv, rv = s["uv"], s["cv"], s["rv"]
+        if uc == 0 or uv == 0:
+            results.append({"name": s["name"], "skip": True})
+            continue
+        ctrl_cr  = min(safe_divide(cc, uc), 1.0)
+        var_cr   = min(safe_divide(cv, uv), 1.0)
+        ctrl_rpv = safe_divide(rc, uc)
+        var_rpv  = safe_divide(rv, uv)
+        try:
+            from statsmodels.stats.proportion import proportions_ztest
+            z_stat, p_val = proportions_ztest([cc, cv], [uc, uv])
+        except Exception:
+            z_stat, p_val = 0.0, 1.0
+        if not np.isfinite(p_val):
+            p_val = 1.0
+        results.append({
+            "name":        s["name"],
+            "ctrl_cr":     ctrl_cr,
+            "var_cr":      var_cr,
+            "ctrl_rpv":    ctrl_rpv,
+            "var_rpv":     var_rpv,
+            "uplift_cr":   calculate_uplift(ctrl_cr, var_cr),
+            "uplift_rpv":  calculate_uplift(ctrl_rpv, var_rpv),
+            "z_stat":      z_stat if np.isfinite(z_stat) else 0.0,
+            "p_value":     p_val,
+            "significant": p_val <= alpha,
+            "ctrl_users":  uc,
+            "var_users":   uv,
+            "ctrl_conv":   cc,
+            "var_conv":    cv,
+            "skip":        False,
         })
     return results
 
@@ -524,7 +589,7 @@ def check_simpsons_paradox(seg1, seg2):
 # -----------------------------------------------
 # AI ANALYSIS
 # -----------------------------------------------
-def get_ai_analysis(api_key, hypothesis, metrics, provider="OpenAI", conf_level="95%"):
+def get_ai_analysis(api_key, hypothesis, metrics, provider="OpenAI", conf_level="95%", segment_results=None):
     if not api_key:
         return "Please enter a valid API Key to generate this analysis."
     # Use None for OpenAI so the SDK uses its own default endpoint (future-proof)
@@ -577,6 +642,21 @@ Median, IQR spread, and stability across groups.
 ## Recommendation
 One paragraph. Ship / do not ship / run longer for each variant. Name a winner if one exists. End with one concrete next step."""
 
+    active_segs = [s for s in (segment_results or []) if not s.get("skip")]
+    if active_segs:
+        seg_lines = "\n".join(
+            f"  - {s['name']}: Ctrl CR {s['ctrl_cr']*100:.2f}% → Var CR {s['var_cr']*100:.2f}% "
+            f"(CR {s['uplift_cr']:+.2f}%, RPV {s['uplift_rpv']:+.2f}%, p={s['p_value']:.4f})"
+            for s in active_segs
+        )
+        prompt += f"""
+
+## Segment Breakdown
+For each segment below, comment on whether the result holds, whether there are meaningful differences across audiences, and any risk of the aggregate result masking a losing segment.
+
+Segment data (Control vs Best Variation):
+{seg_lines}"""
+
     try:
         client   = openai.OpenAI(api_key=api_key, base_url=base_url)
         response = client.chat.completions.create(
@@ -592,7 +672,7 @@ One paragraph. Ship / do not ship / run longer for each variant. Name a winner i
 # -----------------------------------------------
 # SMART ANALYSIS  (rule-based)
 # -----------------------------------------------
-def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, alpha_val):
+def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, alpha_val, segment_results=None):
     report = []
     conf_pct = f"{(1 - alpha_val) * 100:.0f}%"
 
@@ -758,6 +838,32 @@ def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, a
                 f"(limit ±{g['threshold']}%, {g['direction']})"
             )
 
+    # ── SEGMENT BREAKDOWN ────────────────────────────────────────────────────
+    active_segs = [s for s in (segment_results or []) if not s.get("skip")]
+    if active_segs:
+        report.append("### Segment Breakdown")
+        wins  = sum(1 for s in active_segs if s["uplift_cr"] > 0)
+        total = len(active_segs)
+        if wins > total / 2:
+            report.append(f"Variation leads in **{wins}/{total}** segments — result is consistent.")
+        elif wins == total / 2:
+            report.append(f"Variation leads in **{wins}/{total}** segments — mixed result.")
+        else:
+            report.append(
+                f"Variation leads in only **{wins}/{total}** segments — "
+                "aggregate uplift may not generalise across all audiences."
+            )
+        for s in active_segs:
+            sig_tag = " [Sig]" if s["significant"] else ""
+            cr_d  = "▲" if s["uplift_cr"]  >= 0 else "▼"
+            rpv_d = "▲" if s["uplift_rpv"] >= 0 else "▼"
+            report.append(
+                f"- **{s['name']}**{sig_tag}: "
+                f"CR {cr_d}{s['uplift_cr']:+.2f}% | "
+                f"RPV {rpv_d}{s['uplift_rpv']:+.2f}% | "
+                f"p = {s['p_value']:.4f}"
+            )
+
     # ── STRATEGIC CONCLUSION ────────────────────────────────────────────────
     report.append("### Strategic Conclusion")
     if winner:
@@ -794,7 +900,8 @@ def generate_smart_analysis(hypothesis, mv_results, bayes_mv, metrics_payload, a
 # -----------------------------------------------
 def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
                          p_srm, groups, days_run, confidence_level, primary_goal,
-                         ctrl_m, best_m, hypothesis="", smart_text=""):
+                         ctrl_m, best_m, hypothesis="", smart_text="",
+                         ai_text="", segment_results=None):
     """Build a PDF report from the current analysis state. Returns bytes."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
@@ -1000,6 +1107,26 @@ def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
         g_ex   = [('TEXTCOLOR', (5, i+1), (5, i+1), C_RED if r["violated"] else C_GREEN)
                   for i, r in enumerate(active_g)]
         elems.append(_tbl([g_hdr] + g_rows, [USABLE / 6] * 6, g_ex))
+
+    active_pdf_segs = [s for s in (segment_results or []) if not s.get("skip")]
+    if active_pdf_segs:
+        elems.append(Spacer(1, 6))
+        elems.append(Paragraph("Segment Breakdown", s_h2))
+        sg_hdr  = ["Segment", "Ctrl CR", "Var CR", "CR Uplift", "Ctrl RPV", "Var RPV", "RPV Uplift", "p-value", "Sig"]
+        sg_rows = [[
+            s["name"],
+            f"{s['ctrl_cr']*100:.2f}%", f"{s['var_cr']*100:.2f}%",
+            f"{s['uplift_cr']:+.2f}%",
+            f"${s['ctrl_rpv']:.4f}", f"${s['var_rpv']:.4f}",
+            f"{s['uplift_rpv']:+.2f}%",
+            f"{s['p_value']:.4f}",
+            "YES" if s["significant"] else "No",
+        ] for s in active_pdf_segs]
+        sg_ex = [('TEXTCOLOR', (8, i+1), (8, i+1), C_GREEN if s["significant"] else C_DARK)
+                 for i, s in enumerate(active_pdf_segs)]
+        cw9 = USABLE / 9
+        elems.append(_tbl([sg_hdr] + sg_rows, [cw9] * 9, sg_ex))
+
     elems.append(PageBreak())
 
     # ── PAGE 3: CHARTS ────────────────────────────────────────────
@@ -1082,19 +1209,41 @@ def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
         elems.append(Paragraph("Bootstrap Confidence Interval", s_h2))
         elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
 
-    # ── PAGE 4 (optional): SMART ANALYSIS TEXT ───────────────────
-    if smart_text:
+        # Segment CR chart (if data present)
+        if active_pdf_segs:
+            seg_names  = [s["name"]        for s in active_pdf_segs]
+            ctrl_cr_v  = [s["ctrl_cr"]*100 for s in active_pdf_segs]
+            var_cr_v   = [s["var_cr"]*100  for s in active_pdf_segs]
+            x = np.arange(len(seg_names))
+            w = 0.35
+            fig, ax = plt.subplots(figsize=(max(6, len(seg_names) * 1.8), 4))
+            ax.bar(x - w/2, ctrl_cr_v, w, label="Control", color=GROUP_COLORS[0])
+            var_col = [GROUP_COLORS[1] if v >= c else "#d62728"
+                       for v, c in zip(var_cr_v, ctrl_cr_v)]
+            for xi, (val, col) in enumerate(zip(var_cr_v, var_col)):
+                ax.bar(xi + w/2, val, w, color=col)
+            ax.bar([], [], color=GROUP_COLORS[1], label=best_m["name"])
+            ax.set_xticks(x)
+            ax.set_xticklabels(seg_names)
+            ax.set_title("Segment Breakdown — Conversion Rate")
+            ax.set_ylabel("CR (%)")
+            ax.legend(fontsize=8)
+            elems.append(Spacer(1, 8))
+            elems.append(Paragraph("Segment Breakdown — CR", s_h2))
+            elems.append(Image(_fig_bytes(fig), width=IMG_W, height=IMG_H))
+
+    def _render_text_page(title, text):
         elems.append(PageBreak())
-        elems.append(Paragraph("Smart Analysis Report", s_h1))
+        elems.append(Paragraph(title, s_h1))
         elems.append(HRFlowable(width=USABLE, color=C_RED, thickness=1, spaceAfter=6))
-        for line in smart_text.split("\n"):
+        for line in text.split("\n"):
             line = line.strip()
             if not line:
                 elems.append(Spacer(1, 3))
             elif line.startswith("### "):
                 elems.append(Paragraph(line[4:], s_h2))
             elif line.startswith("## "):
-                elems.append(Paragraph(line[3:], _s('sh1', 11, C_DARK, True, TA_LEFT, 8, 3)))
+                elems.append(Paragraph(line[3:], _s('sh1x', 11, C_DARK, True, TA_LEFT, 8, 3)))
             elif line.startswith("# "):
                 elems.append(Paragraph(line[2:], s_h1))
             elif line.startswith(("- ", "* ")):
@@ -1104,6 +1253,12 @@ def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
                     elems.append(Paragraph(_md(line), s_body))
                 except Exception:
                     elems.append(Paragraph(line, s_body))
+
+    # ── PAGE 4+ (optional): SMART ANALYSIS & AI ANALYSIS TEXT ───
+    if smart_text:
+        _render_text_page("Smart Analysis Report", smart_text)
+    if ai_text:
+        _render_text_page("AI Analysis Report", ai_text)
 
     # ── FOOTER ────────────────────────────────────────────────────
     elems.append(Spacer(1, 14))
@@ -1252,6 +1407,38 @@ def plot_power_curve(base_cr, mdes, alpha, max_n):
     plt.close(fig)
 
 
+def plot_segment_bars(title, segments, metric_key, label_v="Variation", unit=""):
+    """Grouped bar chart: Control vs Variation for each segment."""
+    names = [s["name"] for s in segments]
+    if metric_key == "cr":
+        ctrl_vals = [s["ctrl_cr"] * 100 for s in segments]
+        var_vals  = [s["var_cr"]  * 100 for s in segments]
+    else:
+        ctrl_vals = [s["ctrl_rpv"] for s in segments]
+        var_vals  = [s["var_rpv"]  for s in segments]
+
+    x = np.arange(len(names))
+    w = 0.35
+    fig, ax = plt.subplots(figsize=(max(5, len(names) * 1.6), 4))
+
+    ax.bar(x - w / 2, ctrl_vals, w, label="Control", color=GROUP_COLORS[0])
+    var_colors = [GROUP_COLORS[1] if v >= c else "#d62728" for v, c in zip(var_vals, ctrl_vals)]
+    for xi, (val, col) in enumerate(zip(var_vals, var_colors)):
+        ax.bar(xi + w / 2, val, w, color=col)
+    # Dummy bar for legend
+    ax.bar([], [], color=GROUP_COLORS[1], label=label_v)
+    ax.bar([], [], color="#d62728", label=f"{label_v} (below ctrl)")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(names)
+    ax.set_title(title)
+    if unit:
+        ax.set_ylabel(unit)
+    ax.legend(fontsize=8)
+    st.pyplot(fig)
+    plt.close(fig)
+
+
 # ============================================================
 # SIDEBAR
 # ============================================================
@@ -1347,6 +1534,23 @@ with st.sidebar.expander("Guardrail Metrics", expanded=False):
         if _gi < int(num_guardrails) - 1:
             st.markdown("---")
 
+with st.sidebar.expander("Segment Breakdown", expanded=False):
+    st.caption("Per-segment CR and RPV to check if the result holds across audiences.")
+    num_segments = st.selectbox("Number of segments", [1, 2, 3, 4], key="num_segments")
+    for _si in range(int(num_segments)):
+        st.markdown(f"**Segment {_si + 1}**")
+        st.text_input("Name", key=f"seg{_si}_name")
+        st.markdown("Control")
+        st.number_input("Users",         min_value=0, key=f"seg{_si}_uc")
+        st.number_input("Conversions",   min_value=0, key=f"seg{_si}_cc")
+        st.number_input("Revenue ($)",   min_value=0.0, format="%.2f", key=f"seg{_si}_rc")
+        st.markdown("Best Variation")
+        st.number_input("Users",         min_value=0, key=f"seg{_si}_uv")
+        st.number_input("Conversions",   min_value=0, key=f"seg{_si}_cv")
+        st.number_input("Revenue ($)",   min_value=0.0, format="%.2f", key=f"seg{_si}_rv")
+        if _si < int(num_segments) - 1:
+            st.markdown("---")
+
 if int(st.session_state.get("num_variations", 1)) > 1:
     st.sidebar.selectbox(
         "Multiple Comparison Correction",
@@ -1416,10 +1620,7 @@ uploaded = st.sidebar.file_uploader("Load Snapshot", type=["json"])
 if uploaded is not None:
     try:
         loaded = json.load(uploaded)
-        for k in SAVE_KEYS:
-            if k in loaded:
-                st.session_state[k] = loaded[k]
-        st.sidebar.success("Snapshot loaded!")
+        st.session_state["_pending_load"] = {k: loaded[k] for k in SAVE_KEYS if k in loaded}
         st.rerun()
     except (json.JSONDecodeError, KeyError, TypeError) as e:
         st.sidebar.error(f"Could not load file: {e}")
@@ -1467,6 +1668,21 @@ _guardrail_inputs = [
     for i in range(int(st.session_state.get("num_guardrails", 1)))
 ]
 guardrail_results = evaluate_guardrails(_guardrail_inputs)
+
+_segment_inputs = [
+    {
+        "name": st.session_state[f"seg{i}_name"],
+        "uc":   int(st.session_state[f"seg{i}_uc"]),
+        "cc":   int(st.session_state[f"seg{i}_cc"]),
+        "rc":   float(st.session_state[f"seg{i}_rc"]),
+        "uv":   int(st.session_state[f"seg{i}_uv"]),
+        "cv":   int(st.session_state[f"seg{i}_cv"]),
+        "rv":   float(st.session_state[f"seg{i}_rv"]),
+    }
+    for i in range(int(st.session_state.get("num_segments", 1)))
+]
+segment_results = analyze_segments(_segment_inputs, alpha)
+
 duration_checks   = analyze_test_duration(days_run, st.session_state.get("start_date"))
 
 # ---- PDF generation (triggered by sidebar button, runs after all data is ready) ----
@@ -1477,6 +1693,8 @@ if _pdf_requested:
         ctrl_m, best_m,
         hypothesis=st.session_state.get("hyp_smart", ""),
         smart_text=st.session_state.get("_smart_report_text", ""),
+        ai_text=st.session_state.get("_ai_report_text", ""),
+        segment_results=segment_results,
     )
 if st.session_state.get("_pdf_bytes"):
     st.sidebar.download_button(
@@ -1736,10 +1954,11 @@ st.markdown("---")
 # ============================================================
 render_header(ICON_BRAIN, "Deep Dive Analysis")
 
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
     "Smart Analysis", "AI Analysis", "Stopping & Sequential",
     "Strategic Matrix", "Product Metrics", "Revenue Charts",
-    "CR Comparison", "Bayesian", "Bootstrap", "Box Plot", "Power Curves"
+    "CR Comparison", "Bayesian", "Bootstrap", "Box Plot", "Power Curves",
+    "Segment Breakdown"
 ])
 
 # ---- TAB 1: SMART ANALYSIS ----
@@ -1757,7 +1976,7 @@ with tab1:
             "primary_goal":     primary_goal,
             "metrics":          mv["metrics"],
         }
-        _smart_text = generate_smart_analysis(hyp_smart, mv, bayes, smart_payload, alpha)
+        _smart_text = generate_smart_analysis(hyp_smart, mv, bayes, smart_payload, alpha, segment_results=segment_results)
         st.session_state["_smart_report_text"] = _smart_text
         st.markdown("---")
         st.markdown(_smart_text)
@@ -1794,7 +2013,9 @@ with tab2:
             ai_result = get_ai_analysis(
                 api_key_input, hyp_ai, ai_payload,
                 provider=provider_name, conf_level=confidence_level,
+                segment_results=segment_results,
             )
+        st.session_state["_ai_report_text"] = ai_result
         st.markdown("---")
         st.markdown(ai_result)
 
@@ -1897,3 +2118,66 @@ with tab11:
             plot_power_curve(base_cr_pc, mdes, alpha, max_sample)
     except ValueError:
         st.error("Invalid MDE format. Please use comma-separated numbers (e.g., 2, 5.5, 10).")
+
+# ---- TAB 12: SEGMENT BREAKDOWN ----
+with tab12:
+    st.markdown("### Segment Breakdown Explorer")
+    st.caption(
+        f"Per-segment CR and RPV for Control vs **{best_m['name']}**. "
+        "Configure segments in the sidebar under Settings > Segment Breakdown."
+    )
+    st.caption(
+        "Significance uses raw p-values — no multiple comparison correction applied. "
+        "Treat this as an exploratory consistency check, not primary evidence."
+    )
+
+    active_segs = [s for s in segment_results if not s["skip"]]
+
+    if not active_segs:
+        st.info("No segment data entered yet. Add values in the sidebar under Settings > Segment Breakdown.")
+    else:
+        # ── Consistency check banner ──
+        wins  = sum(1 for s in active_segs if s["uplift_cr"] > 0)
+        total = len(active_segs)
+        if wins > total / 2:
+            st.success(
+                f"Variation leads in **{wins}/{total}** segments — result is consistent across audiences."
+            )
+        elif wins == total / 2:
+            st.warning(
+                f"Variation leads in **{wins}/{total}** segments — mixed result. "
+                "Check RPV and significance before deciding."
+            )
+        else:
+            st.warning(
+                f"Variation leads in only **{wins}/{total}** segments — "
+                "aggregate uplift may not generalise across audiences."
+            )
+
+        # ── Segment table ──
+        import pandas as _pd
+        _rows = []
+        for s in active_segs:
+            _rows.append({
+                "Segment":    s["name"],
+                "Ctrl CR":    f"{s['ctrl_cr']*100:.2f}%",
+                "Var CR":     f"{s['var_cr']*100:.2f}%",
+                "CR Uplift":  f"{s['uplift_cr']:+.2f}%",
+                "Ctrl RPV":   f"${s['ctrl_rpv']:.4f}",
+                "Var RPV":    f"${s['var_rpv']:.4f}",
+                "RPV Uplift": f"{s['uplift_rpv']:+.2f}%",
+                "p-value":    f"{s['p_value']:.4f}",
+                "Sig":        "Yes" if s["significant"] else "No",
+            })
+        st.dataframe(_pd.DataFrame(_rows), use_container_width=True, hide_index=True)
+
+        # ── Charts ──
+        _has_rev = any(s["ctrl_rpv"] > 0 or s["var_rpv"] > 0 for s in active_segs)
+        if _has_rev:
+            _col_cr, _col_rpv = st.columns(2)
+            with _col_cr:
+                plot_segment_bars("Conversion Rate", active_segs, "cr", label_v=best_m["name"], unit="CR (%)")
+            with _col_rpv:
+                plot_segment_bars("Revenue Per Visitor", active_segs, "rpv", label_v=best_m["name"], unit="RPV ($)")
+        else:
+            plot_segment_bars("Conversion Rate", active_segs, "cr", label_v=best_m["name"], unit="CR (%)")
