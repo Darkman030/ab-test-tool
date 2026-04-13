@@ -57,6 +57,8 @@ from statsmodels.stats.proportion import proportions_ztest, proportion_confint, 
 from statsmodels.stats.power import NormalIndPower, TTestIndPower
 from statsmodels.stats.multitest import multipletests
 import openai
+import plotly.graph_objects as go
+import plotly.figure_factory as ff
 
 # -----------------------------------------------
 # JSON HELPERS
@@ -1277,69 +1279,132 @@ def generate_pdf_report(mv, bayes, rev_sig, guardrail_results, duration_checks,
 # PLOTTING
 # -----------------------------------------------
 def plot_multivariant_bar(title, values, labels, unit=""):
-    fig, ax = plt.subplots(figsize=(max(8, len(labels) * 2.2), 5))
     ctrl_val = values[0]
     colors   = [
         GROUP_COLORS[i] if (i == 0 or v >= ctrl_val) else "#d62728"
         for i, v in enumerate(values)
     ]
-    bars = ax.bar(labels, values, color=colors, alpha=0.85)
-    mx   = max(values) if max(values) > 0 else 1
-    ax.set_ylim(0, mx * 1.18)
-    ax.set_title(f"{title} by Group")
-    ax.set_ylabel(title)
-    for bar, v in zip(bars, values):
-        ax.text(bar.get_x() + bar.get_width() / 2,
-                v + mx * 0.01,
-                f"{unit}{v:.2f}", ha="center", va="bottom", fontweight="bold", fontsize=9)
-    st.pyplot(fig)
-    plt.close(fig)
+    hover = [f"{unit}{v:.4f}" for v in values]
+    fig = go.Figure(go.Bar(
+        x=labels, y=values,
+        marker_color=colors,
+        text=[f"{unit}{v:.2f}" for v in values],
+        textposition="outside",
+        hovertext=hover,
+        hovertemplate="%{x}: %{hovertext}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=f"{title} by Group",
+        yaxis_title=title,
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        yaxis=dict(gridcolor="#2e3140", showgrid=True),
+        xaxis=dict(showgrid=False),
+        margin=dict(t=50, b=40, l=50, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_strategic_matrix(metrics_list):
-    fig, ax = plt.subplots(figsize=(9, 6))
     ctrl = metrics_list[0]
-    for i, m in enumerate(metrics_list):
-        ax.scatter(m["cr_pct"], m["aov"], color=GROUP_COLORS[i], s=220,
-                   label=m["name"], zorder=5)
-        if i > 0:
-            ax.annotate("",
-                xy=(m["cr_pct"], m["aov"]), xytext=(ctrl["cr_pct"], ctrl["aov"]),
-                arrowprops=dict(arrowstyle="->", color=GROUP_COLORS[i], lw=1.5, ls="--"),
-            )
-    ax.axvline(ctrl["cr_pct"], color="gray", ls=":", alpha=0.4)
-    ax.axhline(ctrl["aov"],    color="gray", ls=":", alpha=0.4)
-    xl, yl = ax.get_xlim(), ax.get_ylim()
     cx, cy = ctrl["cr_pct"], ctrl["aov"]
-    for label, xpos, ypos, colour in [
-        ("Growth\nCR↑ AOV↑",  cx+(xl[1]-cx)*.5, cy+(yl[1]-cy)*.5, "green"),
-        ("Premium\nCR↓ AOV↑", cx-(cx-xl[0])*.5, cy+(yl[1]-cy)*.5, "orange"),
-        ("Volume\nCR↑ AOV↓",  cx+(xl[1]-cx)*.5, cy-(cy-yl[0])*.5, "orange"),
-        ("Loss\nCR↓ AOV↓",    cx-(cx-xl[0])*.5, cy-(cy-yl[0])*.5, "red"),
+
+    fig = go.Figure()
+
+    # Quadrant annotation labels
+    for label, ax_x, ax_y, col in [
+        ("Growth<br>CR↑ AOV↑",  0.75, 0.75, "rgba(0,200,100,0.25)"),
+        ("Premium<br>CR↓ AOV↑", 0.25, 0.75, "rgba(255,165,0,0.20)"),
+        ("Volume<br>CR↑ AOV↓",  0.75, 0.25, "rgba(255,165,0,0.20)"),
+        ("Loss<br>CR↓ AOV↓",    0.25, 0.25, "rgba(215,50,50,0.20)"),
     ]:
-        ax.text(xpos, ypos, label, ha="center", va="center",
-                fontsize=8, color=colour, alpha=0.5)
-    ax.set_title("Strategic Matrix: CR vs AOV")
-    ax.set_xlabel("Conversion Rate (%)")
-    ax.set_ylabel("Average Order Value ($)")
-    ax.legend()
-    st.pyplot(fig)
-    plt.close(fig)
+        fig.add_annotation(
+            xref="paper", yref="paper",
+            x=ax_x, y=ax_y,
+            text=label, showarrow=False,
+            font=dict(size=11, color=col),
+            opacity=0.7,
+        )
+
+    # Arrows from control to each variation
+    for i, m in enumerate(metrics_list):
+        if i == 0:
+            continue
+        fig.add_annotation(
+            x=m["cr_pct"], y=m["aov"],
+            ax=cx, ay=cy,
+            xref="x", yref="y", axref="x", ayref="y",
+            showarrow=True,
+            arrowhead=2, arrowsize=1.2, arrowwidth=1.5,
+            arrowcolor=GROUP_COLORS[i],
+            opacity=0.7,
+        )
+
+    # Scatter points
+    for i, m in enumerate(metrics_list):
+        fig.add_trace(go.Scatter(
+            x=[m["cr_pct"]], y=[m["aov"]],
+            mode="markers+text",
+            marker=dict(color=GROUP_COLORS[i], size=14, line=dict(width=1.5, color="#e0e0e0")),
+            text=[m["name"]], textposition="top center",
+            name=m["name"],
+            hovertemplate=f"<b>{m['name']}</b><br>CR: {m['cr_pct']:.2f}%<br>AOV: ${m['aov']:.2f}<extra></extra>",
+        ))
+
+    fig.add_vline(x=cx, line=dict(color="#555", dash="dot", width=1))
+    fig.add_hline(y=cy, line=dict(color="#555", dash="dot", width=1))
+
+    fig.update_layout(
+        title="Strategic Matrix: CR vs AOV",
+        xaxis_title="Conversion Rate (%)",
+        yaxis_title="Average Order Value ($)",
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        xaxis=dict(gridcolor="#2e3140"),
+        yaxis=dict(gridcolor="#2e3140"),
+        showlegend=True,
+        margin=dict(t=60, b=50, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_bayesian_pdfs(groups):
-    fig, ax = plt.subplots(figsize=(11, 5))
+    fig = go.Figure()
     for i, g in enumerate(groups):
         a = g["conv"] + 1
         b = max(g["users"] - g["conv"], 0) + 1
         d = beta(a, b)
-        x = np.linspace(d.ppf(0.001), d.ppf(0.999), 1000)
-        ax.plot(x, d.pdf(x), label=g["name"], color=GROUP_COLORS[i], lw=2)
-        ax.fill_between(x, d.pdf(x), 0, alpha=0.15, color=GROUP_COLORS[i])
-    ax.set_title("Bayesian Posterior Distributions")
-    ax.set_xlabel("Conversion Rate")
-    ax.set_ylabel("Probability Density")
-    ax.legend()
-    st.pyplot(fig)
-    plt.close(fig)
+        x = np.linspace(d.ppf(0.001), d.ppf(0.999), 500)
+        y = d.pdf(x)
+        col = GROUP_COLORS[i]
+        fig.add_trace(go.Scatter(
+            x=x, y=y,
+            mode="lines",
+            name=g["name"],
+            line=dict(color=col, width=2.5),
+            fill="tozeroy",
+            fillcolor=col.replace(")", ",0.12)").replace("rgb", "rgba") if col.startswith("rgb") else col + "1f",
+            hovertemplate="CR: %{x:.4f}<br>Density: %{y:.2f}<extra>" + g["name"] + "</extra>",
+        ))
+    fig.update_layout(
+        title="Bayesian Posterior Distributions",
+        xaxis_title="Conversion Rate",
+        yaxis_title="Probability Density",
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        xaxis=dict(gridcolor="#2e3140"),
+        yaxis=dict(gridcolor="#2e3140"),
+        legend=dict(bgcolor="#1a1d24", bordercolor="#3a3f52"),
+        margin=dict(t=60, b=50, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 def run_bootstrap_and_plot(uc, cc, uv, cv, alpha_val=0.05, label_v="Variation"):
     rng   = np.random.default_rng()
@@ -1350,61 +1415,122 @@ def run_bootstrap_and_plot(uc, cc, uv, cv, alpha_val=0.05, label_v="Variation"):
     diffs = sim_v - sim_c
     ci_l  = float(np.percentile(diffs, alpha_val / 2 * 100))
     ci_h  = float(np.percentile(diffs, (1 - alpha_val / 2) * 100))
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.hist(diffs, bins=60, color="#ff7f0e", edgecolor="#1a1d24", alpha=0.85)
-    ax.axvline(ci_l, color="#E73B37", ls="--", lw=1.5, label=f"{(1-alpha_val)*100:.0f}% CI Lower")
-    ax.axvline(ci_h, color="#E73B37", ls="--", lw=1.5, label=f"{(1-alpha_val)*100:.0f}% CI Upper")
-    ax.axvline(0,    color="#e0e0e0", lw=1.2, ls=":", label="No effect")
-    ax.set_title(f"Bootstrap CR Difference ({label_v} − Control)")
-    ax.set_xlabel("Difference in Conversion Rate")
-    ax.set_ylabel("Frequency")
-    ax.legend()
-    st.pyplot(fig)
-    plt.close(fig)
+
+    counts, bin_edges = np.histogram(diffs, bins=80)
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    conf_label  = f"{(1-alpha_val)*100:.0f}% CI"
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=bin_centers, y=counts,
+        marker_color="#ff7f0e",
+        marker_line_color="#1a1d24",
+        marker_line_width=0.5,
+        name="Bootstrap samples",
+        hovertemplate="Diff: %{x:.4f}<br>Count: %{y}<extra></extra>",
+    ))
+    fig.add_vline(x=ci_l, line=dict(color="#E73B37", dash="dash", width=1.8),
+                  annotation_text=f"{conf_label} Lower", annotation_font_color="#E73B37",
+                  annotation_position="top left")
+    fig.add_vline(x=ci_h, line=dict(color="#E73B37", dash="dash", width=1.8),
+                  annotation_text=f"{conf_label} Upper", annotation_font_color="#E73B37",
+                  annotation_position="top right")
+    fig.add_vline(x=0, line=dict(color="#aaaaaa", dash="dot", width=1.2),
+                  annotation_text="No effect", annotation_font_color="#aaaaaa",
+                  annotation_position="top right")
+    fig.update_layout(
+        title=f"Bootstrap CR Difference ({label_v} − Control)",
+        xaxis_title="Difference in Conversion Rate",
+        yaxis_title="Frequency",
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        bargap=0.02,
+        xaxis=dict(gridcolor="#2e3140"),
+        yaxis=dict(gridcolor="#2e3140"),
+        showlegend=False,
+        margin=dict(t=60, b=50, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
     return sim_c * 100, sim_v * 100, ci_l * 100, ci_h * 100
 
 def plot_box_plots(samples_c, samples_v, label_v="Best Variation"):
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.boxplot([samples_c, samples_v], patch_artist=True, widths=0.6,
-               boxprops=dict(facecolor="#1f77b4", alpha=0.8),
-               medianprops=dict(color="#E73B37", lw=2),
-               whiskerprops=dict(color="#e0e0e0"),
-               capprops=dict(color="#e0e0e0"),
-               flierprops=dict(marker="o", color="#E73B37", markersize=4, alpha=0.5))
-    ax.set_xticks([1, 2])
-    ax.set_xticklabels(["Control", label_v])
-    ax.set_ylabel("Conversion Rate (%)")
-    ax.set_title("Box Plot: Bootstrap CR Distributions")
-    st.pyplot(fig)
-    plt.close(fig)
+    fig = go.Figure()
+    for label, samples, color in [
+        ("Control", samples_c, GROUP_COLORS[0]),
+        (label_v,   samples_v, GROUP_COLORS[1]),
+    ]:
+        fig.add_trace(go.Box(
+            y=samples,
+            name=label,
+            marker_color=color,
+            line_color=color,
+            fillcolor=color + "40",
+            boxmean=True,
+            hovertemplate=(
+                f"<b>{label}</b><br>"
+                "Median: %{median:.3f}%<br>"
+                "Q1: %{q1:.3f}%<br>"
+                "Q3: %{q3:.3f}%<extra></extra>"
+            ),
+        ))
+    fig.update_layout(
+        title="Box Plot: Bootstrap CR Distributions",
+        yaxis_title="Conversion Rate (%)",
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        yaxis=dict(gridcolor="#2e3140"),
+        xaxis=dict(showgrid=False),
+        showlegend=False,
+        margin=dict(t=60, b=40, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_power_curve(base_cr, mdes, alpha, max_n):
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sample_sizes = np.linspace(100, max_n, 100)
-    
-    for i, mde in enumerate(mdes):
-        relative_effect = mde / 100.0
-        p1 = base_cr / 100.0
-        p2 = p1 * (1 + relative_effect)
-        es = proportion_effectsize(p1, p2)
-        
-        powers = []
-        for n in sample_sizes:
-            # solve_power returns power for a given sample size
-            power = NormalIndPower().solve_power(effect_size=es, nobs1=n, alpha=alpha, ratio=1)
-            powers.append(power)
-            
-        color = GROUP_COLORS[i % len(GROUP_COLORS)]
-        ax.plot(sample_sizes, powers, label=f"MDE: {mde}%", lw=2, color=color)
+    sample_sizes = np.linspace(100, max_n, 120)
+    fig = go.Figure()
 
-    ax.axhline(0.80, color="#E73B37", ls="--", lw=1.5, label="80% Power Threshold")
-    ax.set_title(f"Statistical Power over Sample Size (Base CR: {base_cr}%)")
-    ax.set_xlabel("Sample Size (per group)")
-    ax.set_ylabel("Power")
-    ax.set_ylim(0, 1.05)
-    ax.legend()
-    st.pyplot(fig)
-    plt.close(fig)
+    for i, mde in enumerate(mdes):
+        p1 = base_cr / 100.0
+        p2 = p1 * (1 + mde / 100.0)
+        es = proportion_effectsize(p1, p2)
+        powers = [
+            NormalIndPower().solve_power(effect_size=es, nobs1=n, alpha=alpha, ratio=1)
+            for n in sample_sizes
+        ]
+        color = GROUP_COLORS[i % len(GROUP_COLORS)]
+        fig.add_trace(go.Scatter(
+            x=sample_sizes, y=powers,
+            mode="lines", name=f"MDE: {mde}%",
+            line=dict(color=color, width=2.5),
+            hovertemplate=f"MDE {mde}%<br>N: %{{x:,.0f}}<br>Power: %{{y:.2f}}<extra></extra>",
+        ))
+
+    fig.add_hline(y=0.80, line=dict(color="#E73B37", dash="dash", width=1.8),
+                  annotation_text="80% Power Threshold",
+                  annotation_font_color="#E73B37",
+                  annotation_position="bottom right")
+    fig.update_layout(
+        title=f"Statistical Power over Sample Size (Base CR: {base_cr}%)",
+        xaxis_title="Sample Size (per group)",
+        yaxis_title="Power",
+        yaxis_range=[0, 1.05],
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        xaxis=dict(gridcolor="#2e3140", tickformat=","),
+        yaxis=dict(gridcolor="#2e3140"),
+        legend=dict(bgcolor="#1a1d24", bordercolor="#3a3f52"),
+        margin=dict(t=60, b=50, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def plot_segment_bars(title, segments, metric_key, label_v="Variation", unit=""):
@@ -1413,30 +1539,44 @@ def plot_segment_bars(title, segments, metric_key, label_v="Variation", unit="")
     if metric_key == "cr":
         ctrl_vals = [s["ctrl_cr"] * 100 for s in segments]
         var_vals  = [s["var_cr"]  * 100 for s in segments]
+        fmt = ".2f"
+        suffix = "%"
     else:
         ctrl_vals = [s["ctrl_rpv"] for s in segments]
         var_vals  = [s["var_rpv"]  for s in segments]
+        fmt = ".4f"
+        suffix = ""
 
-    x = np.arange(len(names))
-    w = 0.35
-    fig, ax = plt.subplots(figsize=(max(5, len(names) * 1.6), 4))
-
-    ax.bar(x - w / 2, ctrl_vals, w, label="Control", color=GROUP_COLORS[0])
     var_colors = [GROUP_COLORS[1] if v >= c else "#d62728" for v, c in zip(var_vals, ctrl_vals)]
-    for xi, (val, col) in enumerate(zip(var_vals, var_colors)):
-        ax.bar(xi + w / 2, val, w, color=col)
-    # Dummy bar for legend
-    ax.bar([], [], color=GROUP_COLORS[1], label=label_v)
-    ax.bar([], [], color="#d62728", label=f"{label_v} (below ctrl)")
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(names)
-    ax.set_title(title)
-    if unit:
-        ax.set_ylabel(unit)
-    ax.legend(fontsize=8)
-    st.pyplot(fig)
-    plt.close(fig)
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        name="Control",
+        x=names, y=ctrl_vals,
+        marker_color=GROUP_COLORS[0],
+        hovertemplate=f"Control<br>%{{x}}: %{{y:{fmt}}}{suffix}<extra></extra>",
+    ))
+    fig.add_trace(go.Bar(
+        name=label_v,
+        x=names, y=var_vals,
+        marker_color=var_colors,
+        hovertemplate=f"{label_v}<br>%{{x}}: %{{y:{fmt}}}{suffix}<extra></extra>",
+    ))
+    fig.update_layout(
+        title=title,
+        yaxis_title=unit,
+        barmode="group",
+        plot_bgcolor="#1a1d24",
+        paper_bgcolor="#0e1117",
+        font_color="#e0e0e0",
+        title_font_size=15,
+        yaxis=dict(gridcolor="#2e3140"),
+        xaxis=dict(showgrid=False),
+        legend=dict(bgcolor="#1a1d24", bordercolor="#3a3f52"),
+        margin=dict(t=60, b=40, l=60, r=20),
+        hoverlabel=dict(bgcolor="#1a1d24", font_color="#e0e0e0"),
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 
 # ============================================================
