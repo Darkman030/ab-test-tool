@@ -1372,6 +1372,11 @@ def plot_strategic_matrix(metrics_list):
     )
     st.plotly_chart(fig, use_container_width=True)
 
+def _hex_to_rgba(hex_color, alpha=0.12):
+    h = hex_color.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{alpha})"
+
 def plot_bayesian_pdfs(groups):
     fig = go.Figure()
     for i, g in enumerate(groups):
@@ -1387,7 +1392,7 @@ def plot_bayesian_pdfs(groups):
             name=g["name"],
             line=dict(color=col, width=2.5),
             fill="tozeroy",
-            fillcolor=col.replace(")", ",0.12)").replace("rgb", "rgba") if col.startswith("rgb") else col + "1f",
+            fillcolor=_hex_to_rgba(col, 0.12),
             hovertemplate="CR: %{x:.4f}<br>Density: %{y:.2f}<extra>" + g["name"] + "</extra>",
         ))
     fig.update_layout(
@@ -1467,7 +1472,7 @@ def plot_box_plots(samples_c, samples_v, label_v="Best Variation"):
             name=label,
             marker_color=color,
             line_color=color,
-            fillcolor=color + "40",
+            fillcolor=_hex_to_rgba(color, 0.25),
             boxmean=True,
             hovertemplate=(
                 f"<b>{label}</b><br>"
